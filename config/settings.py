@@ -20,7 +20,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = config('SECRET_KEY', default='change-me-in-development')
 
-DEBUG = config('DEBUG', default=True, cast=bool)
+DEBUG = config('DEBUG', default='true').lower() not in {
+    'false',
+    '0',
+    'no',
+    'off',
+    'production',
+    'release',
+}
 
 ALLOWED_HOSTS = []
 
