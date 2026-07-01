@@ -29,7 +29,14 @@ DEBUG = config('DEBUG', default='true').lower() not in {
     'release',
 }
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in config(
+        'ALLOWED_HOSTS',
+        default='localhost,127.0.0.1,testserver',
+    ).split(',')
+    if host.strip()
+]
 
 # -----------------------------------------------------------------------------
 # Installed Apps
