@@ -1,6 +1,17 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import CustomUser, Role
+from .models import (
+    ApprovalStep,
+    ApprovalWorkflow,
+    CustomUser,
+    GroupPermission,
+    Permission,
+    PermissionGroup,
+    Role,
+    RolePermission,
+    RolePermissionGroup,
+    UserDelegation,
+)
 
 
 @admin.register(Role)
@@ -12,6 +23,79 @@ class RoleAdmin(admin.ModelAdmin):
 @admin.action(description="Approve selected users")
 def approve_users(modeladmin, request, queryset):
     queryset.update(is_approved=True)
+
+
+@admin.register(Permission)
+class PermissionAdmin(admin.ModelAdmin):
+    list_display = (
+        "module",
+        "codename",
+        "name",
+    )
+
+    search_fields = (
+        "codename",
+        "name",
+        "module",
+    )
+
+    list_filter = (
+        "module",
+    )
+
+
+@admin.register(RolePermission)
+class RolePermissionAdmin(admin.ModelAdmin):
+    list_display = (
+        "role",
+        "permission",
+    )
+
+    search_fields = (
+        "role__name",
+        "permission__codename",
+    )
+
+    list_filter = (
+        "role",
+        "permission__module",
+    )
+
+
+@admin.register(PermissionGroup)
+class PermissionGroupAdmin(admin.ModelAdmin):
+    list_display = ("name", "is_active", "created_at")
+    search_fields = ("name",)
+
+
+@admin.register(GroupPermission)
+class GroupPermissionAdmin(admin.ModelAdmin):
+    list_display = ("group", "permission")
+    list_filter = ("group", "permission__module")
+
+
+@admin.register(RolePermissionGroup)
+class RolePermissionGroupAdmin(admin.ModelAdmin):
+    list_display = ("role", "group")
+    list_filter = ("role", "group")
+
+
+@admin.register(UserDelegation)
+class UserDelegationAdmin(admin.ModelAdmin):
+    list_display = ("from_user", "to_user", "start_date", "end_date", "is_active")
+    list_filter = ("is_active",)
+
+
+@admin.register(ApprovalWorkflow)
+class ApprovalWorkflowAdmin(admin.ModelAdmin):
+    list_display = ("name", "module", "is_active")
+    list_filter = ("module", "is_active")
+
+
+@admin.register(ApprovalStep)
+class ApprovalStepAdmin(admin.ModelAdmin):
+    list_display = ("workflow", "step_order", "role", "permission_required")
+    list_filter = ("workflow", "role")
 
 
 @admin.register(CustomUser)
