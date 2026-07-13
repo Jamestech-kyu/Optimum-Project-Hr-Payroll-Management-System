@@ -4,9 +4,14 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from employees.models import Employee
+from .services import (
+    is_within_geofence,
+    determine_attendance_status,
+)
 from .models import (
     WorkLocation,
     Shift,
+    EmployeeAttendanceAssignment,
     AttendanceRecord,
     AttendanceLocationLog,
     AttendanceCorrectionRequest,
@@ -14,13 +19,13 @@ from .models import (
 from .serializers import (
     WorkLocationSerializer,
     ShiftSerializer,
+    EmployeeAttendanceAssignmentSerializer,
     AttendanceRecordSerializer,
     AttendanceLocationLogSerializer,
     AttendanceCorrectionRequestSerializer,
     CheckInSerializer,
     CheckOutSerializer,
 )
-from .services import is_within_geofence
 
 
 class WorkLocationViewSet(viewsets.ModelViewSet):
@@ -32,6 +37,12 @@ class WorkLocationViewSet(viewsets.ModelViewSet):
 class ShiftViewSet(viewsets.ModelViewSet):
     queryset = Shift.objects.all()
     serializer_class = ShiftSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+
+class EmployeeAttendanceAssignmentViewSet(viewsets.ModelViewSet):
+    queryset = EmployeeAttendanceAssignment.objects.all()
+    serializer_class = EmployeeAttendanceAssignmentSerializer
     permission_classes = [permissions.IsAuthenticated]
 
 
@@ -63,23 +74,32 @@ class CheckInView(APIView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         employee_id = serializer.validated_data["employee_id"]
-        work_location_id = serializer.validated_data["work_location_id"]
-        shift_id = serializer.validated_data.get("shift_id")
         latitude = serializer.validated_data["latitude"]
         longitude = serializer.validated_data["longitude"]
 
         try:
             employee = Employee.objects.get(id=employee_id)
-            work_location = WorkLocation.objects.get(id=work_location_id)
-        except (Employee.DoesNotExist, WorkLocation.DoesNotExist):
+        except Employee.DoesNotExist:
             return Response(
-                {"message": "Employee or work location not found"},
+                {"message": "Employee not found"},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        shift = None
-        if shift_id:
-            shift = Shift.objects.filter(id=shift_id).first()
+        try:
+            assignment = EmployeeAttendanceAssignment.objects.get(
+                employee_id=employee_id,
+                is_active=True,
+            )
+        except EmployeeAttendanceAssignment.DoesNotExist:
+            return Response(
+                {
+                    "message": "Employee has no active attendance assignment."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        work_location = assignment.work_location
+        shift = assignment.shift
 
         today = timezone.localdate()
 
@@ -106,7 +126,7 @@ class CheckInView(APIView):
             check_in_latitude=latitude,
             check_in_longitude=longitude,
             check_in_within_geofence=within_geofence,
-            status="PRESENT",
+            status=determine_attendance_status(shift),
         )
 
         AttendanceLocationLog.objects.create(

@@ -2,6 +2,7 @@ from rest_framework import serializers
 from .models import (
     WorkLocation,
     Shift,
+    EmployeeAttendanceAssignment,
     AttendanceRecord,
     AttendanceLocationLog,
     AttendanceCorrectionRequest,
@@ -17,6 +18,12 @@ class WorkLocationSerializer(serializers.ModelSerializer):
 class ShiftSerializer(serializers.ModelSerializer):
     class Meta:
         model = Shift
+        fields = "__all__"
+
+
+class EmployeeAttendanceAssignmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EmployeeAttendanceAssignment
         fields = "__all__"
 
 
@@ -40,10 +47,16 @@ class AttendanceCorrectionRequestSerializer(serializers.ModelSerializer):
 
 class CheckInSerializer(serializers.Serializer):
     employee_id = serializers.IntegerField()
-    work_location_id = serializers.IntegerField()
-    shift_id = serializers.IntegerField(required=False)
-    latitude = serializers.DecimalField(max_digits=9, decimal_places=6)
-    longitude = serializers.DecimalField(max_digits=9, decimal_places=6)
+
+    latitude = serializers.DecimalField(
+        max_digits=9,
+        decimal_places=6,
+    )
+
+    longitude = serializers.DecimalField(
+        max_digits=9,
+        decimal_places=6,
+    )
 
 
 class CheckOutSerializer(serializers.Serializer):

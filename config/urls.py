@@ -1,9 +1,17 @@
 from django.contrib import admin
 from django.urls import path, include
+from rest_framework.routers import DefaultRouter
 from drf_spectacular.views import (
     SpectacularAPIView,
     SpectacularSwaggerView,
 )
+
+from departments.urls import router as departments_router
+from employees.urls import router as employees_router
+
+api_router = DefaultRouter()
+api_router.registry.extend(departments_router.registry)
+api_router.registry.extend(employees_router.registry)
 
 urlpatterns = [
     # Django Admin
@@ -12,8 +20,8 @@ urlpatterns = [
     # Authentication APIs
     path("api/auth/", include("accounts.urls")),
 
-    # Employee APIs
-    path("api/", include("employees.urls")),
+    # Employee and Department APIs
+    path("api/", include(api_router.urls)),
     path("api/attendance/", include("attendance.urls")),
     path("api/leave/", include("leave_management.urls")),
     path("api/payroll/", include("payroll.urls")),

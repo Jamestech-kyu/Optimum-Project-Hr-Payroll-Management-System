@@ -158,7 +158,15 @@ class Employee(models.Model):
 
     @property
     def full_name(self):
-        return f"{self.first_name} {self.middle_name} {self.last_name}".strip()
+        return " ".join(
+            part
+            for part in [
+                self.first_name,
+                self.middle_name,
+                self.last_name,
+            ]
+            if part
+        )
 
     @property
     def gross_salary(self):

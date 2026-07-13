@@ -1,7 +1,7 @@
 from rest_framework import status, viewsets
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-
+from rest_framework import filters
 from audit.services import log_activity
 from audit.utils import get_client_ip
 
@@ -33,6 +33,16 @@ class EmployeeViewSet(viewsets.ModelViewSet):
     queryset = Employee.objects.all().order_by("employee_number")
     serializer_class = EmployeeSerializer
     permission_classes = [IsAuthenticated]
+
+    filter_backends = [filters.SearchFilter]
+    search_fields = [
+        "employee_number",
+        "first_name",
+        "last_name",
+        "personal_email",
+        "work_email",
+        "phone_number",
+    ]
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)

@@ -7,6 +7,7 @@ from .views import (
     AttendanceRecordViewSet,
     AttendanceLocationLogViewSet,
     AttendanceCorrectionRequestViewSet,
+    EmployeeAttendanceAssignmentViewSet,
     CheckInView,
     CheckOutView,
 )
@@ -17,6 +18,7 @@ router.register("shifts", ShiftViewSet, basename="shifts")
 router.register("records", AttendanceRecordViewSet, basename="attendance-records")
 router.register("location-logs", AttendanceLocationLogViewSet, basename="attendance-location-logs")
 router.register("correction-requests", AttendanceCorrectionRequestViewSet, basename="attendance-correction-requests")
+router.register("employee-attendance-assignments", EmployeeAttendanceAssignmentViewSet, basename="employee-attendance")
 
 urlpatterns = [
     path("", include(router.urls)),
