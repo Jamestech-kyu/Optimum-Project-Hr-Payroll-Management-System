@@ -25,6 +25,7 @@ urlpatterns = [
     path("api/attendance/", include("attendance.urls")),
     path("api/leave/", include("leave_management.urls")),
     path("api/payroll/", include("payroll.urls")),
+    path("api/hr-operations/", include("hr_operations.urls")),
 
     # API Documentation
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
