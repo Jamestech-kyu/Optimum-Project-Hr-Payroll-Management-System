@@ -17,7 +17,7 @@ def run_payroll_for_run(payroll_run: PayrollRun):
     # only active employees
     from employees.models import Employee
 
-    active_employees = Employee.objects.filter(employment_status='active')
+    active_employees = Employee.objects.filter(employment_status='ACTIVE')
 
     for employee in active_employees:
         run_payroll_for_employee(payroll_run, employee)
