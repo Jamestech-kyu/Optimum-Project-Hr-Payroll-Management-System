@@ -80,3 +80,39 @@ class IsPayrollTeam(BasePermission):
             and request.user.role
             and request.user.role.name in ["PAYROLL_OFFICER", "ADMIN", "SUPER_ADMIN"]
         )
+
+
+class HasRolePermission(BasePermission):
+    def __init__(self, required_permission):
+        self.required_permission = required_permission
+
+    def has_permission(self, request, view):
+        user = request.user
+
+        if not user or not user.is_authenticated:
+            return False
+
+        if user.is_superuser:
+            return True
+
+        if not user.role:
+            return False
+
+        return user.role.role_permissions.filter(
+            permission__codename=self.required_permission
+        ).exists()
+
+
+from rest_framework.permissions import BasePermission
+from .services import user_has_permission
+
+
+def RequiredPermission(permission_codename):
+    class PermissionChecker(BasePermission):
+        def has_permission(self, request, view):
+            return user_has_permission(
+                request.user,
+                permission_codename,
+            )
+
+    return PermissionChecker

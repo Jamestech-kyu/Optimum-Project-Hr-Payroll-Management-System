@@ -20,9 +20,23 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = config('SECRET_KEY', default='change-me-in-development')
 
-DEBUG = config('DEBUG', default=True, cast=bool)
+DEBUG = config('DEBUG', default='true').lower() not in {
+    'false',
+    '0',
+    'no',
+    'off',
+    'production',
+    'release',
+}
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in config(
+        'ALLOWED_HOSTS',
+        default='localhost,127.0.0.1,testserver',
+    ).split(',')
+    if host.strip()
+]
 
 # -----------------------------------------------------------------------------
 # Installed Apps
@@ -41,6 +55,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'drf_spectacular',
+    'django_filters',
 
     # Local Apps
     'accounts',
@@ -52,6 +67,7 @@ INSTALLED_APPS = [
     'reports',
     'notifications',
     'audit',
+    'hr_operations',
 ]
 
 # -----------------------------------------------------------------------------

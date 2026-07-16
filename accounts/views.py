@@ -11,11 +11,10 @@ except ImportError:  # pragma: no cover
         def decorator(obj):
             return obj
         return decorator
-from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 from rest_framework import status, permissions, serializers
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 from django.contrib.auth import authenticate
 
 from .models import CustomUser
@@ -90,6 +89,38 @@ class LoginView(APIView):
                 "access": str(refresh.access_token),
                 "user": UserSerializer(user).data,
             },
+            status=status.HTTP_200_OK,
+        )
+
+
+class LogoutSerializer(serializers.Serializer):
+    refresh = serializers.CharField(required=False, allow_blank=True)
+
+
+@extend_schema(
+    request=LogoutSerializer,
+)
+class LogoutView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        refresh_token = request.data.get("refresh")
+
+        if refresh_token:
+            try:
+                token = RefreshToken(refresh_token)
+                blacklist = getattr(token, "blacklist", None)
+
+                if blacklist is not None:
+                    blacklist()
+            except TokenError:
+                return Response(
+                    {"message": "Invalid or expired refresh token"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        return Response(
+            {"message": "Logout successful"},
             status=status.HTTP_200_OK,
         )
 

@@ -18,3 +18,12 @@ htmlcov/
 
 .vscode/
 .idea/
+
+.postman/
+inspect_urls.py
+temp_schema*.json
+
+postman/collections/
+postman/environments/
+postman/globals/
+scripts/import_postman.py
