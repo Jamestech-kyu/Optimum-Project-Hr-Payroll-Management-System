@@ -3,7 +3,12 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from employees.models import Employee
-
+from accounts.permissions import RequiredPermission
+from accounts.scopes import scope_related_employee_queryset
+from accounts.object_permissions import (
+    check_related_employee_permission,
+)
+from accounts.services import user_has_permission
 from .models import (
     LeaveType,
     LeaveBalance,
@@ -54,51 +59,121 @@ class LeaveTypeViewSet(viewsets.ModelViewSet):
     destroy=extend_schema(tags=["Leave Management"]),
 )
 class LeaveBalanceViewSet(viewsets.ModelViewSet):
-    queryset = LeaveBalance.objects.all()
     serializer_class = LeaveBalanceSerializer
-    permission_classes = [permissions.IsAuthenticated]
 
+    def get_permissions(self):
+        if self.action in ["list", "retrieve"]:
+            codename = "leave.view"
+        else:
+            codename = "leave.approve"
 
-@extend_schema_view(
-    list=extend_schema(tags=["Leave Management"]),
-    retrieve=extend_schema(tags=["Leave Management"]),
-    create=extend_schema(tags=["Leave Management"]),
-    update=extend_schema(tags=["Leave Management"]),
-    partial_update=extend_schema(tags=["Leave Management"]),
-    destroy=extend_schema(tags=["Leave Management"]),
-)
+        return [RequiredPermission(codename)()]
+
+    def get_queryset(self):
+        queryset = LeaveBalance.objects.select_related(
+            "employee",
+            "leave_type",
+        ).order_by(
+            "employee__employee_number",
+            "year",
+        )
+
+        return scope_related_employee_queryset(
+            user=self.request.user,
+            queryset=queryset,
+            employee_field="employee",
+            permission_codename="leave.view",
+        )
 class LeaveRequestViewSet(viewsets.ModelViewSet):
-    queryset = LeaveRequest.objects.all()
     serializer_class = LeaveRequestSerializer
-    permission_classes = [permissions.IsAuthenticated]
+
+    def get_permissions(self):
+        permission_map = {
+            "list": "leave.view",
+            "retrieve": "leave.view",
+            "create": "leave.request",
+            "update": "leave.approve",
+            "partial_update": "leave.approve",
+            "destroy": "leave.approve",
+        }
+
+        codename = permission_map.get(
+            self.action,
+            "leave.view",
+        )
+
+        return [RequiredPermission(codename)()]
+
+    def get_queryset(self):
+        queryset = LeaveRequest.objects.select_related(
+            "employee",
+            "employee__branch",
+            "employee__department",
+            "leave_type",
+            "requested_by",
+            "manager_approved_by",
+            "hr_approved_by",
+        ).order_by("-created_at")
+
+        return scope_related_employee_queryset(
+            user=self.request.user,
+            queryset=queryset,
+            employee_field="employee",
+            permission_codename="leave.view",
+        )
+
+    def get_object(self):
+        return check_related_employee_permission(
+            user=self.request.user,
+            queryset=LeaveRequest.objects.select_related(
+                "employee",
+                "leave_type",
+            ),
+            employee_field="employee",
+            object_id=self.kwargs["pk"],
+            permission_codename="leave.view",
+        )
 
 
-@extend_schema_view(
-    list=extend_schema(tags=["Leave Management"]),
-    retrieve=extend_schema(tags=["Leave Management"]),
-    create=extend_schema(tags=["Leave Management"]),
-    update=extend_schema(tags=["Leave Management"]),
-    partial_update=extend_schema(tags=["Leave Management"]),
-    destroy=extend_schema(tags=["Leave Management"]),
-)
-class LeaveApprovalViewSet(viewsets.ModelViewSet):
-    queryset = LeaveApproval.objects.all()
+class LeaveApprovalViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = LeaveApprovalSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [
+        RequiredPermission("leave.view")
+    ]
+
+    def get_queryset(self):
+        queryset = LeaveApproval.objects.select_related(
+            "leave_request",
+            "leave_request__employee",
+            "approver",
+        ).order_by("-created_at")
+
+        return scope_related_employee_queryset(
+            user=self.request.user,
+            queryset=queryset,
+            employee_field="leave_request__employee",
+            permission_codename="leave.view",
+        )
 
 
-@extend_schema_view(
-    list=extend_schema(tags=["Leave Management"]),
-    retrieve=extend_schema(tags=["Leave Management"]),
-    create=extend_schema(tags=["Leave Management"]),
-    update=extend_schema(tags=["Leave Management"]),
-    partial_update=extend_schema(tags=["Leave Management"]),
-    destroy=extend_schema(tags=["Leave Management"]),
-)
 class LeaveAttachmentViewSet(viewsets.ModelViewSet):
-    queryset = LeaveAttachment.objects.all()
     serializer_class = LeaveAttachmentSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [
+        RequiredPermission("leave.view")
+    ]
+
+    def get_queryset(self):
+        queryset = LeaveAttachment.objects.select_related(
+            "leave_request",
+            "leave_request__employee",
+        ).order_by("-uploaded_at")
+
+        return scope_related_employee_queryset(
+            user=self.request.user,
+            queryset=queryset,
+            employee_field="leave_request__employee",
+            permission_codename="leave.view",
+        )
 
 
 @extend_schema_view(
@@ -115,7 +190,9 @@ class PublicHolidayViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
 class CreateLeaveRequestView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [
+        RequiredPermission("leave.request")
+    ]
 
     @extend_schema(
         tags=["Leave Management"],
@@ -130,6 +207,34 @@ class CreateLeaveRequestView(APIView):
 
         try:
             employee = Employee.objects.get(id=serializer.validated_data["employee_id"])
+            request_employee = getattr(
+                request.user,
+                "employee_profile",
+                None,
+            )
+
+            can_manage_leave = user_has_permission(
+                request.user,
+                "leave.approve",
+            )
+
+            if (
+                not can_manage_leave
+                and (
+                    not request_employee
+                    or request_employee.id != employee.id
+                )
+            ):
+                return Response(
+                    {
+                        "message": (
+                            "You can only create leave requests "
+                            "for your own employee profile."
+                        )
+                    },
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
             leave_type = LeaveType.objects.get(id=serializer.validated_data["leave_type_id"])
 
             leave_request = create_leave_request(
@@ -164,7 +269,9 @@ class CreateLeaveRequestView(APIView):
 
 
 class ManagerApproveLeaveView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [
+        RequiredPermission("leave.approve")
+    ]
 
     @extend_schema(
         tags=["Leave Management"],
@@ -179,6 +286,29 @@ class ManagerApproveLeaveView(APIView):
 
         try:
             leave_request = LeaveRequest.objects.get(id=leave_request_id)
+            request_employee = getattr(
+                request.user,
+                "employee_profile",
+                None,
+            )
+
+            if (
+                request_employee
+                and leave_request.employee.manager_id
+                and leave_request.employee.manager_id
+                != request_employee.id
+                and not request.user.is_superuser
+            ):
+                return Response(
+                    {
+                        "message": (
+                            "You are not the assigned manager "
+                            "for this employee."
+                        )
+                    },
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
             updated_request = manager_approve_leave(
                 leave_request=leave_request,
                 approver=request.user,
@@ -208,7 +338,9 @@ class ManagerApproveLeaveView(APIView):
 
 
 class HRApproveLeaveView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [
+        RequiredPermission("leave.approve")
+    ]
 
     @extend_schema(
         tags=["Leave Management"],
@@ -252,7 +384,9 @@ class HRApproveLeaveView(APIView):
 
 
 class RejectLeaveView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [
+        RequiredPermission("leave.approve")
+    ]
 
     @extend_schema(
         tags=["Leave Management"],

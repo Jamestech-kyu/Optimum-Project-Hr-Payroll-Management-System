@@ -1,17 +1,11 @@
 from accounts.models import (
+    GroupPermission,
     RolePermission,
     RolePermissionGroup,
-    GroupPermission,
-    UserDelegation,
 )
 
 
 def user_has_permission(user, permission_codename):
-    """
-    Check whether a user has a permission either directly
-    or through a permission group.
-    """
-
     if not user or not user.is_authenticated:
         return False
 
@@ -21,35 +15,23 @@ def user_has_permission(user, permission_codename):
     if not user.role:
         return False
 
-    # Direct Role Permission
-    if RolePermission.objects.filter(
+    direct_permission_exists = RolePermission.objects.filter(
         role=user.role,
-        permission__codename=permission_codename,
-    ).exists():
-        return True
-
-    # Permission inherited from groups
-    groups = RolePermissionGroup.objects.filter(
-        role=user.role
-    ).values_list("group", flat=True)
-
-    return GroupPermission.objects.filter(
-        group_id__in=groups,
         permission__codename=permission_codename,
     ).exists()
 
+    if direct_permission_exists:
+        return True
 
-def get_permission_scope(user, permission_codename):
-    """
-    Return the assigned data scope for a permission.
-    """
-
-    role_permission = RolePermission.objects.filter(
+    group_ids = RolePermissionGroup.objects.filter(
         role=user.role,
+        group__is_active=True,
+    ).values_list(
+        "group_id",
+        flat=True,
+    )
+
+    return GroupPermission.objects.filter(
+        group_id__in=group_ids,
         permission__codename=permission_codename,
-    ).first()
-
-    if role_permission:
-        return role_permission.data_scope
-
-    return None
+    ).exists()

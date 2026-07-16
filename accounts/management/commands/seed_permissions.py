@@ -67,6 +67,7 @@ class Command(BaseCommand):
                 "leave.request",
                 "leave.view",
                 "attendance.view",
+                "employees.view",
             ],
         }
 

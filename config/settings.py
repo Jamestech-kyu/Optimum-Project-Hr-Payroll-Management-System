@@ -55,7 +55,6 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'drf_spectacular',
-    'django_filters',
 
     # Local Apps
     'accounts',
@@ -68,6 +67,7 @@ INSTALLED_APPS = [
     'notifications',
     'audit',
     'hr_operations',
+    'contracts',
 ]
 
 # -----------------------------------------------------------------------------

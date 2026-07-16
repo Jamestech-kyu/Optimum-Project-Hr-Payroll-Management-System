@@ -101,6 +101,10 @@ class Command(BaseCommand):
             ],
             "EMPLOYEE": [
                 "Employee Self Service",
+                "employees.view",
+                "leave.request",
+                "leave.view",
+                "attendance.view",
             ],
         }
 

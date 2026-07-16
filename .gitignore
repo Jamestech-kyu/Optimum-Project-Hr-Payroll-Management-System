@@ -26,4 +26,5 @@ temp_schema*.json
 postman/collections/
 postman/environments/
 postman/globals/
+
 scripts/import_postman.py

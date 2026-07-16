@@ -765,6 +765,124 @@
           ]
         },
         {
+          "name": "Create Shift",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Day Shift\",\n  \"start_time\": \"08:00:00\",\n  \"end_time\": \"17:00:00\",\n  \"grace_period_minutes\": 10,\n  \"is_active\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/attendance/shifts/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "attendance",
+                "shifts"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.id) {",
+                  "  pm.environment.set('shift_id', json.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Shifts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/attendance/shifts/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "attendance",
+                "shifts"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Attendance Assignment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employee\": {{employee_id}},\n  \"work_location\": {{work_location_id}},\n  \"shift\": {{shift_id}},\n  \"effective_from\": \"2026-07-13\",\n  \"effective_to\": null,\n  \"is_active\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/attendance/assignments/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "attendance",
+                "assignments"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.id) {",
+                  "  pm.environment.set('attendance_assignment_id', json.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Attendance Assignments",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/attendance/assignments/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "attendance",
+                "assignments"
+              ]
+            }
+          }
+        },
+        {
           "name": "Check In",
           "request": {
             "method": "POST",
@@ -776,7 +894,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"employee_id\": {{employee_id}},\n  \"work_location_id\": {{work_location_id}},\n  \"shift_id\": {{shift_id}},\n  \"latitude\": \"{{latitude}}\",\n  \"longitude\": \"{{longitude}}\"\n}"
+              "raw": "{\n  \"employee_id\": {{employee_id}},\n  \"latitude\": \"{{latitude}}\",\n  \"longitude\": \"{{longitude}}\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/api/attendance/check-in/",
@@ -846,6 +964,24 @@
                 "api",
                 "attendance",
                 "records"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Location Logs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/attendance/location-logs/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "attendance",
+                "location-logs"
               ]
             }
           }
@@ -1103,6 +1239,122 @@
                 "api",
                 "payroll",
                 "runs"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Submit Payroll For Approval",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"comment\": \"Payroll reviewed and ready for approval\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/payroll/runs/{{payroll_run_id}}/submit/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "payroll",
+                "runs",
+                "{{payroll_run_id}}",
+                "submit"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Approve Payroll",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"comment\": \"Payroll approved\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/payroll/runs/{{payroll_run_id}}/approve/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "payroll",
+                "runs",
+                "{{payroll_run_id}}",
+                "approve"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Finalize Payroll",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"comment\": \"Payroll finalized\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/payroll/runs/{{payroll_run_id}}/finalize/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "payroll",
+                "runs",
+                "{{payroll_run_id}}",
+                "finalize"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Cancel Payroll",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Payroll cancelled during testing\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/payroll/runs/{{payroll_run_id}}/cancel/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "payroll",
+                "runs",
+                "{{payroll_run_id}}",
+                "cancel"
               ]
             }
           }

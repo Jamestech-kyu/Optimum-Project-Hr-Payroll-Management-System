@@ -417,3 +417,66 @@ class EmployeeAsset(models.Model):
 
     def __str__(self):
         return f"{self.asset_name} - {self.employee.full_name}"
+from django.conf import settings
+from django.db import models
+
+
+class SalaryHistory(models.Model):
+    ADJUSTMENT_TYPE_CHOICES = [
+        ("INITIAL", "Initial Salary"),
+        ("INCREMENT", "Salary Increment"),
+        ("DECREMENT", "Salary Decrement"),
+        ("PROMOTION", "Promotion"),
+        ("CONTRACT_RENEWAL", "Contract Renewal"),
+        ("CORRECTION", "Salary Correction"),
+        ("OTHER", "Other"),
+    ]
+
+    employee = models.ForeignKey(
+        Employee,
+        on_delete=models.CASCADE,
+        related_name="salary_history",
+    )
+
+    previous_salary = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0,
+    )
+
+    new_salary = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+    )
+
+    adjustment_type = models.CharField(
+        max_length=30,
+        choices=ADJUSTMENT_TYPE_CHOICES,
+        default="OTHER",
+    )
+
+    effective_date = models.DateField()
+
+    reason = models.TextField()
+
+    changed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="salary_changes_made",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = [
+            "-effective_date",
+            "-created_at",
+        ]
+
+    def __str__(self):
+        return (
+            f"{self.employee.employee_number}: "
+            f"{self.previous_salary} → {self.new_salary}"
+        )   

@@ -2,11 +2,20 @@ from django.utils import timezone
 from rest_framework import status, viewsets, permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from accounts.permissions import RequiredPermission
+from accounts.object_permissions import (
+    check_related_employee_permission,
+)
+from accounts.scopes import scope_related_employee_queryset
+from accounts.services import user_has_permission
 
+
+from audit.utils import get_client_ip
 from employees.models import Employee
 from .services import (
-    is_within_geofence,
+    get_geofence_result,
     determine_attendance_status,
+    calculate_checkout_summary,
 )
 from .models import (
     WorkLocation,
@@ -47,25 +56,111 @@ class EmployeeAttendanceAssignmentViewSet(viewsets.ModelViewSet):
 
 
 class AttendanceRecordViewSet(viewsets.ModelViewSet):
-    queryset = AttendanceRecord.objects.all()
     serializer_class = AttendanceRecordSerializer
-    permission_classes = [permissions.IsAuthenticated]
+
+    def get_permissions(self):
+        permission_map = {
+            "list": "attendance.view",
+            "retrieve": "attendance.view",
+            "create": "attendance.manage",
+            "update": "attendance.manage",
+            "partial_update": "attendance.manage",
+            "destroy": "attendance.manage",
+        }
+
+        codename = permission_map.get(
+            self.action,
+            "attendance.view",
+        )
+
+        return [RequiredPermission(codename)()]
+
+    def get_queryset(self):
+        queryset = AttendanceRecord.objects.select_related(
+            "employee",
+            "employee__branch",
+            "employee__department",
+            "shift",
+            "work_location",
+        ).order_by("-date", "-check_in_time")
+
+        return scope_related_employee_queryset(
+            user=self.request.user,
+            queryset=queryset,
+            employee_field="employee",
+            permission_codename="attendance.view",
+        )
+
+    def get_object(self):
+        return check_related_employee_permission(
+            user=self.request.user,
+            queryset=AttendanceRecord.objects.select_related(
+                "employee",
+            ),
+            employee_field="employee",
+            object_id=self.kwargs["pk"],
+            permission_codename="attendance.view",
+        )
 
 
-class AttendanceLocationLogViewSet(viewsets.ModelViewSet):
-    queryset = AttendanceLocationLog.objects.all()
+class AttendanceLocationLogViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = AttendanceLocationLogSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [
+        RequiredPermission("attendance.view")
+    ]
+
+    def get_queryset(self):
+        queryset = AttendanceLocationLog.objects.select_related(
+            "attendance",
+            "attendance__employee",
+        ).order_by("-captured_at")
+
+        return scope_related_employee_queryset(
+            user=self.request.user,
+            queryset=queryset,
+            employee_field="attendance__employee",
+            permission_codename="attendance.view",
+        )
 
 
 class AttendanceCorrectionRequestViewSet(viewsets.ModelViewSet):
-    queryset = AttendanceCorrectionRequest.objects.all()
     serializer_class = AttendanceCorrectionRequestSerializer
-    permission_classes = [permissions.IsAuthenticated]
+
+    def get_permissions(self):
+        if self.action in [
+            "list",
+            "retrieve",
+            "create",
+        ]:
+            codename = "attendance.view"
+        else:
+            codename = "attendance.manage"
+
+        return [RequiredPermission(codename)()]
+
+    def get_queryset(self):
+        queryset = AttendanceCorrectionRequest.objects.select_related(
+            "attendance",
+            "attendance__employee",
+            "requested_by",
+            "approved_by",
+        ).order_by("-created_at")
+
+        return scope_related_employee_queryset(
+            user=self.request.user,
+            queryset=queryset,
+            employee_field="attendance__employee",
+            permission_codename="attendance.view",
+        )
+
+    def perform_create(self, serializer):
+        serializer.save(requested_by=self.request.user)
 
 
 class CheckInView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [
+        RequiredPermission("attendance.view")
+    ]
 
     def post(self, request):
         serializer = CheckInSerializer(data=request.data)
@@ -83,6 +178,34 @@ class CheckInView(APIView):
             return Response(
                 {"message": "Employee not found"},
                 status=status.HTTP_404_NOT_FOUND,
+            )
+
+        request_employee = getattr(
+            request.user,
+            "employee_profile",
+            None,
+        )
+
+        can_manage_attendance = user_has_permission(
+            request.user,
+            "attendance.manage",
+        )
+
+        if (
+            not can_manage_attendance
+            and (
+                not request_employee
+                or request_employee.id != employee.id
+            )
+        ):
+            return Response(
+                {
+                    "message": (
+                        "You can only check in for your own "
+                        "employee profile."
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN,
             )
 
         try:
@@ -109,7 +232,12 @@ class CheckInView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        within_geofence = is_within_geofence(latitude, longitude, work_location)
+        geofence_result = get_geofence_result(
+            latitude,
+            longitude,
+            work_location,
+        )
+        within_geofence = geofence_result["within_geofence"]
 
         if not within_geofence:
             return Response(
@@ -135,6 +263,9 @@ class CheckInView(APIView):
             latitude=latitude,
             longitude=longitude,
             within_geofence=within_geofence,
+            distance_meters=geofence_result["distance_meters"],
+            ip_address=get_client_ip(request),
+            user_agent=request.META.get("HTTP_USER_AGENT", ""),
         )
 
         return Response(
@@ -147,7 +278,9 @@ class CheckInView(APIView):
 
 
 class CheckOutView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [
+        RequiredPermission("attendance.view")
+    ]
 
     def post(self, request):
         serializer = CheckOutSerializer(data=request.data)
@@ -170,20 +303,52 @@ class CheckOutView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
+        request_employee = getattr(
+            request.user,
+            "employee_profile",
+            None,
+        )
+
+        can_manage_attendance = user_has_permission(
+            request.user,
+            "attendance.manage",
+        )
+
+        if (
+            not can_manage_attendance
+            and (
+                not request_employee
+                or request_employee.id != employee.id
+            )
+        ):
+            return Response(
+                {
+                    "message": (
+                        "You can only check out for your own "
+                        "employee profile."
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         if attendance.check_out_time:
             return Response(
                 {"message": "Employee has already checked out today"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        within_geofence = False
+        geofence_result = {
+            "within_geofence": False,
+            "distance_meters": None,
+        }
 
         if attendance.work_location:
-            within_geofence = is_within_geofence(
+            geofence_result = get_geofence_result(
                 latitude,
                 longitude,
                 attendance.work_location,
             )
+        within_geofence = geofence_result["within_geofence"]
 
         if not within_geofence:
             return Response(
@@ -191,15 +356,33 @@ class CheckOutView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        attendance.check_out_time = timezone.now()
+        checkout_time = timezone.now()
+
+        summary = calculate_checkout_summary(
+            attendance=attendance,
+            checkout_time=checkout_time,
+        )
+
+        attendance.check_out_time = summary["checkout_time"]
         attendance.check_out_latitude = latitude
         attendance.check_out_longitude = longitude
         attendance.check_out_within_geofence = within_geofence
+        attendance.total_hours = summary["total_hours"]
+        attendance.overtime_hours = summary["overtime_hours"]
+        attendance.status = summary["status"]
 
-        duration = attendance.check_out_time - attendance.check_in_time
-        attendance.total_hours = round(duration.total_seconds() / 3600, 2)
-
-        attendance.save()
+        attendance.save(
+            update_fields=[
+                "check_out_time",
+                "check_out_latitude",
+                "check_out_longitude",
+                "check_out_within_geofence",
+                "total_hours",
+                "overtime_hours",
+                "status",
+                "updated_at",
+            ]
+        )
 
         AttendanceLocationLog.objects.create(
             attendance=attendance,
@@ -207,6 +390,9 @@ class CheckOutView(APIView):
             latitude=latitude,
             longitude=longitude,
             within_geofence=within_geofence,
+            distance_meters=geofence_result["distance_meters"],
+            ip_address=get_client_ip(request),
+            user_agent=request.META.get("HTTP_USER_AGENT", ""),
         )
 
         return Response(

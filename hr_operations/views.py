@@ -4,7 +4,6 @@ from django.utils import timezone
 from rest_framework import viewsets, permissions, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django_filters.rest_framework import DjangoFilterBackend
 
 from .models import (
     PerformanceReview,
@@ -22,6 +21,17 @@ from .serializers import (
     TrainingSerializer,
     TrainingEnrollmentSerializer,
 )
+
+
+class DjangoFilterBackend:
+    def filter_queryset(self, request, queryset, view):
+        for field in getattr(view, "filterset_fields", []):
+            value = request.query_params.get(field)
+
+            if value not in [None, ""]:
+                queryset = queryset.filter(**{field: value})
+
+        return queryset
 
 
 # =========================================================
