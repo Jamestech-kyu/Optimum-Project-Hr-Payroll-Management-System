@@ -1,255 +1,129 @@
 from decimal import Decimal
 
-from django.utils import timezone
-
-from employees.models import Employee
-from audit.services import log_activity
-from audit.utils import get_client_ip
+from django.db import transaction
+from django.db.models import Q
 
 from .models import (
-    PayrollRun,
-    Payslip,
-    PayrollAllowance,
+    DeductionType,
+    Payroll,
     PayrollDeduction,
-    BankPayment,
-    EmployeePayComponent,
-    TaxBand,
-    StatutoryRate,
+    PayrollRun,
+    SalaryStructure,
+    TaxSlab,
 )
 
 
-def calculate_employee_basic_salary(employee):
-    return employee.basic_salary or Decimal("0.00")
+def run_payroll_for_run(payroll_run: PayrollRun):
+    # only active employees
+    from employees.models import Employee
+
+    active_employees = Employee.objects.filter(employment_status='ACTIVE')
+
+    for employee in active_employees:
+        run_payroll_for_employee(payroll_run, employee)
 
 
-def calculate_employee_allowances(employee):
-    allowances = {
-        "House Allowance": employee.house_allowance or Decimal("0.00"),
-        "Transport Allowance": employee.transport_allowance or Decimal("0.00"),
-        "Medical Allowance": employee.medical_allowance or Decimal("0.00"),
-        "Other Allowance": employee.other_allowance or Decimal("0.00"),
-    }
+def run_payroll_for_employee(payroll_run: PayrollRun, employee):
+    # get latest active salary structure
+    from datetime import date
 
-    total = sum(allowances.values(), Decimal("0.00"))
+    today = date.today()
 
-    return total, allowances
-
-
-def calculate_employee_extra_components(employee):
-    earnings = {}
-    deductions = {}
-
-    components = EmployeePayComponent.objects.filter(
-        employee=employee,
-        is_active=True,
-        component__is_active=True,
+    latest_structure = (
+        SalaryStructure.objects.filter(employee=employee)
+        .filter(effective_from__lte=today)
+        .filter(Q(effective_to__isnull=True) | Q(effective_to__gte=today))
+        .order_by('-effective_from')
+        .first()
     )
 
-    for item in components:
-        component = item.component
-        amount = item.amount or component.default_amount or Decimal("0.00")
+    if latest_structure is None:
+        return
 
-        if component.component_type == "EARNING":
-            earnings[component.name] = amount
-
-        elif component.component_type in ["DEDUCTION", "TAX"]:
-            deductions[component.name] = amount
-
-    return earnings, deductions
-
-
-def calculate_gross_pay(employee):
-    basic_salary = calculate_employee_basic_salary(employee)
-    total_allowances, allowances = calculate_employee_allowances(employee)
-    extra_earnings, extra_deductions = calculate_employee_extra_components(employee)
-
-    gross_pay = basic_salary + total_allowances + sum(
-        extra_earnings.values(),
-        Decimal("0.00"),
+    # compute gross pay
+    gross_pay = (
+        latest_structure.basic_salary
+        + latest_structure.housing_allowance
+        + latest_structure.transport_allowance
+        + latest_structure.other_allowances
     )
 
-    return {
-        "basic_salary": basic_salary,
-        "allowances": allowances,
-        "extra_earnings": extra_earnings,
-        "extra_deductions": extra_deductions,
-        "gross_pay": gross_pay,
-    }
+    # compute PAYE/progressive tax
+    tax_slabs = TaxSlab.objects.filter(is_active=True).order_by('order_index')
+    taxable = Decimal(gross_pay)
+    total_tax = Decimal('0')
 
-
-def calculate_paye(taxable_income):
-    paye = Decimal("0.00")
-
-    tax_bands = TaxBand.objects.filter(
-        name="PAYE",
-        is_active=True,
-    ).order_by("min_income")
-
-    for band in tax_bands:
-        min_income = band.min_income
-        max_income = band.max_income
-        rate = band.rate / Decimal("100.00")
-
-        if taxable_income <= min_income:
+    for slab in tax_slabs:
+        lower = Decimal(slab.lower_bound)
+        upper = Decimal(slab.upper_bound) if slab.upper_bound is not None else None
+        if taxable <= lower:
             continue
 
-        upper_limit = max_income if max_income else taxable_income
-        taxable_amount = min(taxable_income, upper_limit) - min_income
+        slab_taxable = taxable - lower
+        if upper is not None:
+            cap = upper - lower
+            slab_taxable = min(slab_taxable, cap)
 
-        if taxable_amount > 0:
-            paye += taxable_amount * rate
+        slab_tax = (slab_taxable * Decimal(slab.rate_percent)) / Decimal('100')
+        total_tax += slab_tax
 
-    return paye.quantize(Decimal("0.01"))
+        if upper is not None and taxable <= upper:
+            break
 
+    # total deductions (tax + other active deductions)
+    deduction_rows = []
 
-def calculate_statutory_deductions(gross_pay):
-    deductions = {}
+    # include PAYE as statutory deduction? Not modeled explicitly; treat as PayrollDeduction with a synthetic type.
+    # If you later add a dedicated DeductionType for PAYE, this can be adjusted.
+    deduction_rows.append(("PAYE", total_tax, f"Progressive slabs from gross={gross_pay}"))
 
-    rates = StatutoryRate.objects.filter(is_active=True)
-
-    for rate in rates:
-        if rate.is_percentage:
-            amount = gross_pay * (rate.rate / Decimal("100.00"))
+    for dt in DeductionType.objects.filter(is_active=True):
+        if dt.calculation_type == dt.CALC_PERCENT:
+            amount = (Decimal(dt.rate_or_amount) * Decimal(gross_pay)) / Decimal('100')
+            basis = f"{dt.name}: {dt.rate_or_amount}% of gross {gross_pay}"
         else:
-            amount = rate.rate
+            amount = Decimal(dt.rate_or_amount)
+            basis = f"{dt.name}: fixed {dt.rate_or_amount}"
 
-        deductions[rate.name] = amount.quantize(Decimal("0.01"))
+        deduction_rows.append((dt.name, amount, basis))
 
-    return deductions
+    total_deductions = sum(amount for _, amount, _ in deduction_rows)
+    net_pay = Decimal(gross_pay) - Decimal(total_deductions)
 
-
-def calculate_employee_payroll(employee):
-    gross_data = calculate_gross_pay(employee)
-
-    gross_pay = gross_data["gross_pay"]
-    taxable_income = gross_pay
-
-    paye = calculate_paye(taxable_income)
-
-    statutory_deductions = calculate_statutory_deductions(gross_pay)
-    extra_deductions = gross_data["extra_deductions"]
-
-    total_deductions = (
-        paye
-        + sum(statutory_deductions.values(), Decimal("0.00"))
-        + sum(extra_deductions.values(), Decimal("0.00"))
-    )
-
-    net_pay = gross_pay - total_deductions
-
-    return {
-        "basic_salary": gross_data["basic_salary"],
-        "allowances": gross_data["allowances"],
-        "extra_earnings": gross_data["extra_earnings"],
-        "gross_pay": gross_pay.quantize(Decimal("0.01")),
-        "paye": paye,
-        "statutory_deductions": statutory_deductions,
-        "extra_deductions": extra_deductions,
-        "total_deductions": total_deductions.quantize(Decimal("0.01")),
-        "net_pay": net_pay.quantize(Decimal("0.01")),
-    }
-
-
-def generate_payslip(payroll_run, employee):
-    payroll_data = calculate_employee_payroll(employee)
-
-    payslip, created = Payslip.objects.update_or_create(
-        payroll_run=payroll_run,
-        employee=employee,
-        defaults={
-            "basic_salary": payroll_data["basic_salary"],
-            "total_allowances": sum(
-                payroll_data["allowances"].values(),
-                Decimal("0.00"),
+    with transaction.atomic():
+        # idempotency
+        payroll = Payroll.objects.filter(payroll_run=payroll_run, employee=employee).first()
+        if payroll is None:
+            payroll = Payroll.objects.create(
+                payroll_run=payroll_run,
+                employee=employee,
+                salary_structure=latest_structure,
+                gross_pay=gross_pay,
+                total_deductions=total_deductions,
+                net_pay=net_pay,
             )
-            + sum(
-                payroll_data["extra_earnings"].values(),
-                Decimal("0.00"),
-            ),
-            "gross_pay": payroll_data["gross_pay"],
-            "tax_amount": payroll_data["paye"],
-            "total_deductions": payroll_data["total_deductions"],
-            "net_pay": payroll_data["net_pay"],
-        },
-    )
+        else:
+            payroll.salary_structure = latest_structure
+            payroll.gross_pay = gross_pay
+            payroll.total_deductions = total_deductions
+            payroll.net_pay = net_pay
+            payroll.save()
 
-    payslip.allowances.all().delete()
-    payslip.deductions.all().delete()
+        PayrollDeduction.objects.filter(payroll=payroll).delete()
 
-    for name, amount in payroll_data["allowances"].items():
-        PayrollAllowance.objects.create(
-            payslip=payslip,
-            name=name,
-            amount=amount,
-        )
+        # write deductions
+        for name, amount, basis in deduction_rows:
+            # map to DeductionType if exists; otherwise skip FK requirements by creating placeholder None
+            dt = DeductionType.objects.filter(name=name).first()
+            if dt is None:
+                continue
 
-    for name, amount in payroll_data["extra_earnings"].items():
-        PayrollAllowance.objects.create(
-            payslip=payslip,
-            name=name,
-            amount=amount,
-        )
-
-    PayrollDeduction.objects.create(
-        payslip=payslip,
-        name="PAYE",
-        amount=payroll_data["paye"],
-    )
-
-    for name, amount in payroll_data["statutory_deductions"].items():
-        PayrollDeduction.objects.create(
-            payslip=payslip,
-            name=name,
-            amount=amount,
-        )
-
-    for name, amount in payroll_data["extra_deductions"].items():
-        PayrollDeduction.objects.create(
-            payslip=payslip,
-            name=name,
-            amount=amount,
-        )
-
-    BankPayment.objects.update_or_create(
-        payroll_run=payroll_run,
-        employee=employee,
-        defaults={
-            "bank_name": employee.bank_name,
-            "account_number": employee.bank_account_number,
-            "account_name": employee.bank_account_name,
-            "amount": payroll_data["net_pay"],
-            "status": "PENDING",
-        },
-    )
-
-    return payslip
+            PayrollDeduction.objects.create(
+                payroll=payroll,
+                deduction_type=dt,
+                amount=amount,
+                calculation_basis=basis,
+            )
 
 
-def generate_payroll_run(month, year, processed_by, request=None):
-    payroll_run, created = PayrollRun.objects.get_or_create(
-        month=month,
-        year=year,
-        defaults={
-            "processed_by": processed_by,
-            "processed_at": timezone.now(),
-            "status": "DRAFT",
-        },
-    )
 
-    employees = Employee.objects.filter(
-        employment_status__in=["ACTIVE", "PROBATION", "ONBOARDING"]
-    )
-
-    for employee in employees:
-        generate_payslip(payroll_run, employee)
-
-    log_activity(
-        user=processed_by,
-        action="CREATE",
-        module="Payroll",
-        description=f"Generated payroll for {month}/{year}.",
-        object_id=payroll_run.id,
-        ip_address=get_client_ip(request) if request else None,
-    )
-
-    return payroll_run

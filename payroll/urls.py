@@ -1,24 +1,14 @@
-from django.urls import include, path
+from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
-from .views import *
+from .views import PayrollRunViewSet, PayrollViewSet, PayrollDeductionViewSet
 
 router = DefaultRouter()
-
-router.register("runs", PayrollRunViewSet)
-router.register("payslips", PayslipViewSet)
-router.register("allowances", PayrollAllowanceViewSet)
-router.register("deductions", PayrollDeductionViewSet)
-router.register("bank-payments", BankPaymentViewSet)
-router.register("components", PayComponentViewSet)
-router.register("employee-components", EmployeePayComponentViewSet)
-router.register("tax-bands", TaxBandViewSet)
-router.register("statutory-rates", StatutoryRateViewSet)
-router.register("currencies", CurrencyViewSet)
-router.register("exchange-rates", ExchangeRateViewSet)
-router.register("policies", PayrollPolicyViewSet)
+router.register(r'payroll-runs', PayrollRunViewSet, basename='payroll-runs')
+router.register(r'', PayrollViewSet, basename='payroll')
+router.register(r'deductions', PayrollDeductionViewSet, basename='payroll-deductions')
 
 urlpatterns = [
-    path("", include(router.urls)),
-    path("generate/", GeneratePayrollView.as_view(), name="generate-payroll"),
+    path('', include(router.urls)),
 ]
+
