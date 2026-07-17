@@ -10,6 +10,7 @@ from .models import (
     EmployeeSkill,
     EmployeeBankAccount,
     EmployeeAsset,
+    SalaryHistory,
 )
 
 
@@ -293,3 +294,131 @@ class EmployeeAssetSerializer(serializers.ModelSerializer):
     class Meta:
         model = EmployeeAsset
         fields = "__all__"
+class SalaryHistorySerializer(serializers.ModelSerializer):
+    employee_name = serializers.CharField(
+        source="employee.full_name",
+        read_only=True,
+    )
+
+    employee_number = serializers.CharField(
+        source="employee.employee_number",
+        read_only=True,
+    )
+
+    changed_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SalaryHistory
+        fields = [
+            "id",
+            "employee",
+            "employee_name",
+            "employee_number",
+            "previous_salary",
+            "new_salary",
+            "adjustment_type",
+            "effective_date",
+            "reason",
+            "changed_by",
+            "changed_by_name",
+            "created_at",
+        ]
+
+        read_only_fields = [
+            "employee",
+            "previous_salary",
+            "changed_by",
+            "created_at",
+        ]
+
+    def get_changed_by_name(self, obj):
+        if not obj.changed_by:
+            return None
+
+        return (
+            obj.changed_by.get_full_name()
+            or obj.changed_by.username
+            or obj.changed_by.email
+        )
+
+
+class FinancialProfileSerializer(serializers.ModelSerializer):
+    full_name = serializers.ReadOnlyField()
+    gross_salary = serializers.ReadOnlyField()
+
+    class Meta:
+        model = Employee
+        fields = [
+            "id",
+            "employee_number",
+            "full_name",
+            "basic_salary",
+            "house_allowance",
+            "transport_allowance",
+            "medical_allowance",
+            "other_allowance",
+            "gross_salary",
+            "bank_name",
+            "bank_branch",
+            "bank_account_number",
+            "bank_account_name",
+            "swift_code",
+            "tax_pin",
+            "social_security_number",
+            "health_insurance_number",
+        ]
+
+    def validate(self, data):
+        errors = {}
+
+        if "basic_salary" in data and data["basic_salary"] <= 0:
+            errors["basic_salary"] = (
+                "Basic salary must be greater than zero."
+            )
+
+        for field in [
+            "house_allowance",
+            "transport_allowance",
+            "medical_allowance",
+            "other_allowance",
+        ]:
+            if field in data and data[field] < 0:
+                errors[field] = (
+                    f"{field.replace('_', ' ').title()} "
+                    "cannot be negative."
+                )
+
+        if errors:
+            raise serializers.ValidationError(errors)
+
+        return data
+
+
+class SalaryAdjustmentSerializer(serializers.Serializer):
+    new_salary = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+    )
+
+    adjustment_type = serializers.ChoiceField(
+        choices=SalaryHistory.ADJUSTMENT_TYPE_CHOICES,
+    )
+
+    effective_date = serializers.DateField()
+
+    reason = serializers.CharField(
+        allow_blank=False,
+        max_length=2000,
+    )
+
+    update_active_contract = serializers.BooleanField(
+        default=True,
+    )
+
+    def validate_new_salary(self, value):
+        if value <= 0:
+            raise serializers.ValidationError(
+                "New salary must be greater than zero."
+            )
+
+        return value

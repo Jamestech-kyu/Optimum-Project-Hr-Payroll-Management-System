@@ -1,3 +1,17 @@
+from rest_framework.views import APIView
+from drf_spectacular.utils import extend_schema
+
+from accounts.object_permissions import (
+    check_employee_object_permission,
+)
+
+from .models import SalaryHistory
+from .serializers import (
+    FinancialProfileSerializer,
+    SalaryHistorySerializer,
+    SalaryAdjustmentSerializer,
+)
+from .services import adjust_employee_salary
 from rest_framework import status, viewsets
 from rest_framework.response import Response
 from rest_framework import filters
@@ -289,4 +303,216 @@ class EmployeeAssetViewSet(viewsets.ModelViewSet):
             queryset=queryset,
             employee_field="employee",
             permission_codename="employees.view",
+        )
+@extend_schema(
+    responses={200: FinancialProfileSerializer},
+    tags=["Employee Financial Profile"],
+)
+class EmployeeFinancialProfileView(APIView):
+    def get_permissions(self):
+        if self.request.method == "GET":
+            codename = "salary.view"
+        else:
+            codename = "salary.adjust"
+
+        return [RequiredPermission(codename)()]
+
+    def get_employee(self, request, employee_id, permission_codename):
+        employee = Employee.objects.select_related(
+            "branch",
+            "department",
+            "designation",
+        ).get(id=employee_id)
+
+        check_employee_object_permission(
+            request.user,
+            employee,
+            permission_codename,
+        )
+
+        return employee
+
+    def get(self, request, employee_id):
+        try:
+            employee = self.get_employee(
+                request,
+                employee_id,
+                "salary.view",
+            )
+
+        except Employee.DoesNotExist:
+            return Response(
+                {"message": "Employee not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        serializer = FinancialProfileSerializer(
+            employee
+        )
+
+        return Response(
+            serializer.data,
+            status=status.HTTP_200_OK,
+        )
+
+    def put(self, request, employee_id):
+        try:
+            employee = self.get_employee(
+                request,
+                employee_id,
+                "salary.adjust",
+            )
+
+        except Employee.DoesNotExist:
+            return Response(
+                {"message": "Employee not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        serializer = FinancialProfileSerializer(
+            employee,
+            data=request.data,
+            partial=True,
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        log_activity(
+            user=request.user,
+            action="UPDATE",
+            module="Employees",
+            description=(
+                f"Updated financial profile for "
+                f"{employee.employee_number}."
+            ),
+            object_id=employee.id,
+            ip_address=get_client_ip(request),
+        )
+
+        return Response(
+            serializer.data,
+            status=status.HTTP_200_OK,
+        )
+
+
+@extend_schema(
+    responses={200: SalaryHistorySerializer(many=True)},
+    tags=["Employee Financial Profile"],
+)
+class EmployeeSalaryHistoryView(APIView):
+    permission_classes = [
+        RequiredPermission("salary.view")
+    ]
+
+    def get(self, request, employee_id):
+        try:
+            employee = Employee.objects.get(
+                id=employee_id
+            )
+
+        except Employee.DoesNotExist:
+            return Response(
+                {"message": "Employee not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        check_employee_object_permission(
+            request.user,
+            employee,
+            "salary.view",
+        )
+
+        queryset = SalaryHistory.objects.filter(
+            employee=employee,
+        ).select_related(
+            "changed_by",
+        ).order_by(
+            "-effective_date",
+            "-created_at",
+        )
+
+        serializer = SalaryHistorySerializer(
+            queryset,
+            many=True,
+        )
+
+        return Response(
+            serializer.data,
+            status=status.HTTP_200_OK,
+        )
+
+
+@extend_schema(
+    request=SalaryAdjustmentSerializer,
+    responses={201: SalaryHistorySerializer},
+    tags=["Employee Financial Profile"],
+)
+class EmployeeSalaryAdjustmentView(APIView):
+    permission_classes = [
+        RequiredPermission("salary.adjust")
+    ]
+
+    def post(self, request, employee_id):
+        serializer = SalaryAdjustmentSerializer(
+            data=request.data
+        )
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            employee = Employee.objects.get(
+                id=employee_id
+            )
+
+        except Employee.DoesNotExist:
+            return Response(
+                {"message": "Employee not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        check_employee_object_permission(
+            request.user,
+            employee,
+            "salary.adjust",
+        )
+
+        try:
+            history = adjust_employee_salary(
+                employee=employee,
+                new_salary=serializer.validated_data[
+                    "new_salary"
+                ],
+                adjustment_type=serializer.validated_data[
+                    "adjustment_type"
+                ],
+                effective_date=serializer.validated_data[
+                    "effective_date"
+                ],
+                reason=serializer.validated_data[
+                    "reason"
+                ],
+                changed_by=request.user,
+                update_active_contract=(
+                    serializer.validated_data[
+                        "update_active_contract"
+                    ]
+                ),
+                request=request,
+            )
+
+        except ValueError as error:
+            return Response(
+                {"message": str(error)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {
+                "message": (
+                    "Employee salary adjusted successfully."
+                ),
+                "salary_history": SalaryHistorySerializer(
+                    history
+                ).data,
+            },
+            status=status.HTTP_201_CREATED,
         )

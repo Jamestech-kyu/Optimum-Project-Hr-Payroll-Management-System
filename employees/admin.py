@@ -9,6 +9,7 @@ from .models import (
     EmployeeSkill,
     EmployeeBankAccount,
     EmployeeAsset,
+    SalaryHistory,
 )
 
 
@@ -208,4 +209,33 @@ class EmployeeAssetAdmin(admin.ModelAdmin):
     list_filter = (
         "is_returned",
     )
- 
+
+
+@admin.register(SalaryHistory)
+class SalaryHistoryAdmin(admin.ModelAdmin):
+    list_display = (
+        "employee",
+        "previous_salary",
+        "new_salary",
+        "adjustment_type",
+        "effective_date",
+        "changed_by",
+        "created_at",
+    )
+
+    search_fields = (
+        "employee__employee_number",
+        "employee__first_name",
+        "employee__last_name",
+        "reason",
+    )
+
+    list_filter = (
+        "adjustment_type",
+        "effective_date",
+        "created_at",
+    )
+
+    readonly_fields = (
+        "created_at",
+    )

@@ -18,6 +18,8 @@ class Command(BaseCommand):
                 "employees.create",
                 "employees.update",
                 "employees.delete",
+                "salary.view",
+                "salary.adjust",
             ],
             "Attendance Administration": [
                 "attendance.view",
@@ -31,6 +33,15 @@ class Command(BaseCommand):
                 "payroll.view",
                 "payroll.generate",
                 "payroll.approve",
+                "salary.view",
+                "benefits.view",
+            ],
+            "Benefits Administration": [
+                "benefits.view",
+                "benefits.create",
+                "benefits.update",
+                "benefits.delete",
+                "benefits.enroll",
             ],
             "Reports": [
                 "reports.view",
@@ -48,6 +59,8 @@ class Command(BaseCommand):
                 "leave.request",
                 "leave.view",
                 "attendance.view",
+                "salary.view",
+                "benefits.view",
             ],
         }
 
@@ -71,6 +84,7 @@ class Command(BaseCommand):
                 "Employee Management",
                 "Attendance Administration",
                 "Leave Administration",
+                "Benefits Administration",
                 "Payroll Administration",
                 "Reports",
                 "Audit",
@@ -81,6 +95,7 @@ class Command(BaseCommand):
                 "Employee Management",
                 "Attendance Administration",
                 "Leave Administration",
+                "Benefits Administration",
                 "Reports",
                 "Settings",
             ],
@@ -88,6 +103,7 @@ class Command(BaseCommand):
                 "Employee Management",
                 "Attendance Administration",
                 "Leave Administration",
+                "Benefits Administration",
                 "Reports",
             ],
             "MANAGER": [
