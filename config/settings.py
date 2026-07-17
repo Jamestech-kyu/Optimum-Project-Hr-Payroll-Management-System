@@ -69,6 +69,7 @@ INSTALLED_APPS = [
     'hr_operations',
     'contracts',
     'benefits', 
+    'performance'
 ]
 
 # -----------------------------------------------------------------------------

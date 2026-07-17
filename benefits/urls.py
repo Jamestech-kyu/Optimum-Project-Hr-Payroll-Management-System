@@ -2,12 +2,14 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from .views import (
+    ApproveEmployeeBenefitView,
     BenefitPlanViewSet,
     EnrollmentWindowViewSet,
     EmployeeBenefitViewSet,
     BenefitContributionHistoryViewSet,
     EnrollEmployeeBenefitView,
     EmployeeBenefitsView,
+    RejectEmployeeBenefitView,
 )
 
 router = DefaultRouter()
@@ -41,6 +43,18 @@ urlpatterns = [
         "enroll/",
         EnrollEmployeeBenefitView.as_view(),
         name="benefit-enroll",
+    ),
+
+    path(
+        "enrollments/<int:enrollment_id>/approve/",
+        ApproveEmployeeBenefitView.as_view(),
+        name="benefit-enrollment-approve",
+    ),
+
+    path(
+        "enrollments/<int:enrollment_id>/reject/",
+        RejectEmployeeBenefitView.as_view(),
+        name="benefit-enrollment-reject",
     ),
 
     path(

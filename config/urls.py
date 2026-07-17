@@ -21,6 +21,7 @@ urlpatterns = [
     # Employee and Department APIs
     path("api/", include("employees.urls")),
     path("api/benefits/", include("benefits.urls")),
+    path("api/performance/", include("performance.urls")),
     path("api/", include(api_router.urls)),
     path("api/attendance/", include("attendance.urls")),
     path("api/", include("contracts.urls")),

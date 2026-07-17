@@ -3694,6 +3694,74 @@
           ]
         },
         {
+          "name": "Approve Enrollment",
+          "item": [
+            {
+              "name": "Approve Enrollment",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/benefits/enrollments/{{benefit_enrollment_id}}/approve/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "benefits",
+                    "enrollments",
+                    "{{benefit_enrollment_id}}",
+                    "approve"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"remarks\": \"Approved\"\n}"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reject Enrollment",
+          "item": [
+            {
+              "name": "Reject Enrollment",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/benefits/enrollments/{{benefit_enrollment_id}}/reject/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "benefits",
+                    "enrollments",
+                    "{{benefit_enrollment_id}}",
+                    "reject"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"remarks\": \"Rejected\"\n}"
+                }
+              }
+            }
+          ]
+        },
+        {
           "name": "Employee Benefits",
           "item": [
             {
@@ -3760,6 +3828,288 @@
                     "contributions"
                   ]
                 }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Performance",
+      "item": [
+        {
+          "name": "Performance Cycles",
+          "item": [
+            {
+              "name": "List Cycles",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/performance/cycles/"
+              }
+            },
+            {
+              "name": "Create Cycle",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/performance/cycles/",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"2026 Annual Review\",\n  \"description\": \"Annual performance review cycle\",\n  \"start_date\": \"2026-01-01\",\n  \"end_date\": \"2026-12-31\",\n  \"review_deadline\": \"2026-12-15\",\n  \"status\": \"OPEN\",\n  \"created_by\": \"{{user_id}}\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Get Cycle",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/performance/cycles/{{cycle_id}}/"
+              }
+            },
+            {
+              "name": "Update Cycle",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/performance/cycles/{{cycle_id}}/",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"OPEN\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Delete Cycle",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": "{{base_url}}/api/performance/cycles/{{cycle_id}}/"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Performance Goals",
+          "item": [
+            {
+              "name": "List Goals",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/performance/goals/"
+              }
+            },
+            {
+              "name": "Create Goal",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/performance/goals/",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"employee\": \"{{employee_id}}\",\n  \"cycle\": \"{{cycle_id}}\",\n  \"title\": \"Improve payroll processing accuracy\",\n  \"description\": \"Reduce monthly payroll errors and improve review time.\",\n  \"weight\": \"25.00\",\n  \"target_value\": \"100.00\",\n  \"measurement_unit\": \"%\",\n  \"status\": \"PENDING\",\n  \"created_by\": \"{{user_id}}\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Get Goal",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/performance/goals/{{goal_id}}/"
+              }
+            },
+            {
+              "name": "Update Goal",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/performance/goals/{{goal_id}}/",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"IN_PROGRESS\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Delete Goal",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": "{{base_url}}/api/performance/goals/{{goal_id}}/"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Goal Progress",
+          "item": [
+            {
+              "name": "Submit Progress",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/performance/submit-progress/",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"goal_id\": \"{{goal_id}}\",\n  \"progress_percentage\": \"50.00\",\n  \"remarks\": \"Mid-cycle update\"\n}"
+                }
+              }
+            },
+            {
+              "name": "List Progress",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/performance/progress/"
+              }
+            },
+            {
+              "name": "Get Progress",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/performance/progress/{{progress_id}}/"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Employee Goals",
+          "item": [
+            {
+              "name": "Get Employee Goals",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/performance/employees/{{employee_id}}/goals/"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Performance Reviews",
+          "item": [
+            {
+              "name": "List Reviews",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/performance/reviews/"
+              }
+            },
+            {
+              "name": "Create Review",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/performance/reviews/",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"employee\": \"{{employee_id}}\",\n  \"reviewer\": \"{{user_id}}\",\n  \"cycle\": \"{{cycle_id}}\",\n  \"communication\": \"8.00\",\n  \"teamwork\": \"8.00\",\n  \"leadership\": \"7.00\",\n  \"technical_skill\": \"9.00\",\n  \"innovation\": \"7.50\",\n  \"attendance\": \"8.00\",\n  \"initiative\": \"8.00\",\n  \"productivity\": \"8.50\",\n  \"problem_solving\": \"8.00\",\n  \"customer_service\": \"7.50\",\n  \"recommend_promotion\": false,\n  \"recommend_salary_increment\": true,\n  \"recommend_bonus\": false,\n  \"recommend_training\": true,\n  \"recommend_pip\": false,\n  \"manager_comments\": \"Strong performance overall.\",\n  \"employee_comments\": \"\",\n  \"hr_comments\": \"\",\n  \"status\": \"DRAFT\",\n  \"review_date\": \"2026-07-17\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Get Review",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/performance/reviews/{{review_id}}/"
+              }
+            },
+            {
+              "name": "Update Review",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/performance/reviews/{{review_id}}/",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"manager_comments\": \"Updated manager comments.\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Delete Review",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": "{{base_url}}/api/performance/reviews/{{review_id}}/"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Review Workflow",
+          "item": [
+            {
+              "name": "Submit Review",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": "{{base_url}}/api/performance/reviews/{{review_id}}/submit/"
+              }
+            },
+            {
+              "name": "Manager Approve",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": "{{base_url}}/api/performance/reviews/{{review_id}}/manager-approve/"
+              }
+            },
+            {
+              "name": "HR Approve",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": "{{base_url}}/api/performance/reviews/{{review_id}}/hr-approve/"
+              }
+            },
+            {
+              "name": "Finalize Review",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": "{{base_url}}/api/performance/reviews/{{review_id}}/finalize/"
               }
             }
           ]

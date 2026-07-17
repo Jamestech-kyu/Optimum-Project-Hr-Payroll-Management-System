@@ -1,3 +1,4 @@
+from django.shortcuts import get_object_or_404
 from rest_framework import permissions, status, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -19,8 +20,13 @@ from .serializers import (
     BenefitContributionHistorySerializer,
     EnrollmentWindowSerializer,
     EnrollBenefitSerializer,
+    BenefitApprovalSerializer,
 )
-from .services import enroll_employee
+from .services import (
+    approve_employee_benefit,
+    enroll_employee,
+    reject_employee_benefit,
+)
 
 
 class BenefitPlanViewSet(viewsets.ModelViewSet):
@@ -102,6 +108,124 @@ class EnrollEmployeeBenefitView(APIView):
                 ).data,
             },
             status=status.HTTP_201_CREATED,
+        )
+
+
+@extend_schema(
+    request=BenefitApprovalSerializer,
+    responses={200: EmployeeBenefitSerializer},
+    tags=["Benefits"],
+)
+class ApproveEmployeeBenefitView(APIView):
+    permission_classes = [
+        RequiredPermission("benefits.approve")
+    ]
+
+    def post(self, request, enrollment_id):
+        serializer = BenefitApprovalSerializer(
+            data=request.data
+        )
+        serializer.is_valid(raise_exception=True)
+
+        enrollment = get_object_or_404(
+            EmployeeBenefit.objects.select_related(
+                "employee",
+                "benefit_plan",
+            ),
+            id=enrollment_id,
+        )
+
+        enrollment = approve_employee_benefit(
+            enrollment=enrollment,
+            approved_by=request.user,
+            remarks=serializer.validated_data.get(
+                "remarks",
+                "",
+            ),
+        )
+
+        log_activity(
+            user=request.user,
+            action="APPROVE",
+            module="Benefits",
+            description=(
+                f"Approved {enrollment.benefit_plan.name} "
+                f"for employee "
+                f"{enrollment.employee.employee_number}."
+            ),
+            object_id=enrollment.id,
+            ip_address=get_client_ip(request),
+        )
+
+        return Response(
+            {
+                "message": (
+                    "Benefit enrollment approved successfully."
+                ),
+                "enrollment": EmployeeBenefitSerializer(
+                    enrollment
+                ).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+@extend_schema(
+    request=BenefitApprovalSerializer,
+    responses={200: EmployeeBenefitSerializer},
+    tags=["Benefits"],
+)
+class RejectEmployeeBenefitView(APIView):
+    permission_classes = [
+        RequiredPermission("benefits.approve")
+    ]
+
+    def post(self, request, enrollment_id):
+        serializer = BenefitApprovalSerializer(
+            data=request.data
+        )
+        serializer.is_valid(raise_exception=True)
+
+        enrollment = get_object_or_404(
+            EmployeeBenefit.objects.select_related(
+                "employee",
+                "benefit_plan",
+            ),
+            id=enrollment_id,
+        )
+
+        enrollment = reject_employee_benefit(
+            enrollment=enrollment,
+            approved_by=request.user,
+            remarks=serializer.validated_data.get(
+                "remarks",
+                "",
+            ),
+        )
+
+        log_activity(
+            user=request.user,
+            action="REJECT",
+            module="Benefits",
+            description=(
+                f"Rejected {enrollment.benefit_plan.name} "
+                f"for employee "
+                f"{enrollment.employee.employee_number}."
+            ),
+            object_id=enrollment.id,
+            ip_address=get_client_ip(request),
+        )
+
+        return Response(
+            {
+                "message": (
+                    "Benefit enrollment rejected successfully."
+                ),
+                "enrollment": EmployeeBenefitSerializer(
+                    enrollment
+                ).data,
+            },
+            status=status.HTTP_200_OK,
         )
 
 
