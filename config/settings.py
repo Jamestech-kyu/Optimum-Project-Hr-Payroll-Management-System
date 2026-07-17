@@ -56,6 +56,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'drf_spectacular',
     'django_filters',
+    'corsheaders',
 
     # Local Apps
     'accounts',
@@ -69,7 +70,7 @@ INSTALLED_APPS = [
     'audit',
     'hr_operations',
     'contracts',
-    'benefits', 
+    'benefits',
     'performance',
     'training',
 ]
@@ -80,6 +81,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -230,3 +232,14 @@ SPECTACULAR_SETTINGS = {
     'DESCRIPTION': 'Backend API for HR & Payroll Management System',
     'VERSION': '1.0.0',
 }
+# -----------------------------------------------------------------------------
+# CORS Configuration
+# -----------------------------------------------------------------------------
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+
+# For development only – you can allow all origins (but not for production)
+# CORS_ALLOW_ALL_ORIGINS = True
