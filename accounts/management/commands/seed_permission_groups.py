@@ -75,6 +75,27 @@ class Command(BaseCommand):
                 "performance.view",
                 "performance.update_progress",
             ],
+            "Training Administration": [
+                "training.view",
+                "training.create",
+                "training.update",
+                "training.delete",
+                "training.enroll",
+                "training.approve",
+                "training.reject",
+                "training.attendance",
+                "training.assessment",
+                "training.recommend",
+            ],
+            "Training Management": [
+                "training.view",
+                "training.enroll",
+                "training.attendance",
+                "training.recommend",
+            ],
+            "Training Self Service": [
+                "training.view",
+            ],
             "Reports": [
                 "reports.view",
             ],
@@ -95,6 +116,7 @@ class Command(BaseCommand):
                 "benefits.view",
                 "performance.view",
                 "performance.update_progress",
+                "training.view",
             ],
         }
 
@@ -120,6 +142,7 @@ class Command(BaseCommand):
                 "Leave Administration",
                 "Benefits Administration",
                 "Performance Administration",
+                "Training Administration",
                 "Payroll Administration",
                 "Reports",
                 "Audit",
@@ -132,6 +155,7 @@ class Command(BaseCommand):
                 "Leave Administration",
                 "Benefits Administration",
                 "Performance Administration",
+                "Training Administration",
                 "Reports",
                 "Settings",
             ],
@@ -141,12 +165,14 @@ class Command(BaseCommand):
                 "Leave Administration",
                 "Benefits Administration",
                 "Performance HR",
+                "Training Administration",
                 "Reports",
             ],
             "MANAGER": [
                 "Attendance Administration",
                 "Leave Administration",
                 "Performance Management",
+                "Training Management",
                 "Reports",
             ],
             "PAYROLL_OFFICER": [
@@ -156,6 +182,7 @@ class Command(BaseCommand):
             "EMPLOYEE": [
                 "Employee Self Service",
                 "Performance Self Service",
+                "Training Self Service",
                 "employees.view",
                 "leave.request",
                 "leave.view",

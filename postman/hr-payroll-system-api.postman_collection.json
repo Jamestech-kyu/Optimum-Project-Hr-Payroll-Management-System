@@ -4115,6 +4115,873 @@
           ]
         }
       ]
+    },
+    {
+      "name": "Reporting",
+      "item": [
+        {
+          "name": "Report Templates",
+          "item": [
+            {
+              "name": "List Templates",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/reporting/templates/"
+              }
+            },
+            {
+              "name": "Create Template",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/reporting/templates/",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Employee Summary\",\n  \"report_type\": \"EMPLOYEE\",\n  \"description\": \"Employee summary report\",\n  \"default_export_format\": \"JSON\",\n  \"is_active\": true\n}"
+                }
+              }
+            },
+            {
+              "name": "Get Template",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/reporting/templates/{{report_template_id}}/"
+              }
+            },
+            {
+              "name": "Update Template",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/reporting/templates/{{report_template_id}}/",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Employee Summary\",\n  \"report_type\": \"EMPLOYEE\",\n  \"description\": \"Updated employee summary report\",\n  \"default_export_format\": \"JSON\",\n  \"is_active\": true\n}"
+                }
+              }
+            },
+            {
+              "name": "Patch Template",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/reporting/templates/{{report_template_id}}/",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"description\": \"Patched report template description\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Delete Template",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": "{{base_url}}/api/reporting/templates/{{report_template_id}}/"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Generate and Preview Reports",
+          "item": [
+            {
+              "name": "Generate Report",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/reporting/generate/",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"template_id\": \"{{report_template_id}}\",\n  \"export_format\": \"JSON\",\n  \"filters\": {\n    \"employee_id\": \"{{employee_id}}\"\n  }\n}"
+                }
+              }
+            },
+            {
+              "name": "Preview Report",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/reporting/preview/",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"report_type\": \"EMPLOYEE\",\n  \"filters\": {\n    \"employee_id\": \"{{employee_id}}\"\n  }\n}"
+                }
+              }
+            },
+            {
+              "name": "Report Summary",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/reporting/summary/"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Execution History",
+          "item": [
+            {
+              "name": "List Executions",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/reporting/executions/"
+              }
+            },
+            {
+              "name": "Get Execution",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/reporting/executions/{{report_execution_id}}/"
+              }
+            },
+            {
+              "name": "Download Execution",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/reporting/executions/{{report_execution_id}}/download/"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Saved Reports",
+          "item": [
+            {
+              "name": "List Saved Reports",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/reporting/saved/"
+              }
+            },
+            {
+              "name": "Create Saved Report",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/reporting/saved/",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"My Employee Report\",\n  \"report_type\": \"EMPLOYEE\",\n  \"filters\": {\n    \"employee_id\": \"{{employee_id}}\"\n  },\n  \"export_format\": \"JSON\",\n  \"is_public\": false\n}"
+                }
+              }
+            },
+            {
+              "name": "Get Saved Report",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/reporting/saved/{{saved_report_id}}/"
+              }
+            },
+            {
+              "name": "Update Saved Report",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/reporting/saved/{{saved_report_id}}/",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"My Employee Report\",\n  \"report_type\": \"EMPLOYEE\",\n  \"filters\": {\n    \"employee_id\": \"{{employee_id}}\"\n  },\n  \"export_format\": \"JSON\",\n  \"is_public\": false\n}"
+                }
+              }
+            },
+            {
+              "name": "Patch Saved Report",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/reporting/saved/{{saved_report_id}}/",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Updated Employee Report\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Delete Saved Report",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": "{{base_url}}/api/reporting/saved/{{saved_report_id}}/"
+              }
+            },
+            {
+              "name": "Run Saved Report",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": "{{base_url}}/api/reporting/saved/{{saved_report_id}}/run/"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "item": [
+        {
+          "name": "My Notifications",
+          "item": [
+            {
+              "name": "List My Notifications",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/notifications/notifications/"
+              }
+            },
+            {
+              "name": "Mark Notification as Read",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": "{{base_url}}/api/notifications/notifications/{{notification_id}}/read/"
+              }
+            },
+            {
+              "name": "Mark All as Read",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": "{{base_url}}/api/notifications/notifications/read_all/"
+              }
+            },
+            {
+              "name": "Unread Count",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/notifications/notifications/unread_count/"
+              }
+            },
+            {
+              "name": "Recent Notifications",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/notifications/notifications/recent/"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Preferences",
+          "item": [
+            {
+              "name": "View Preferences",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/notifications/preferences/"
+              }
+            },
+            {
+              "name": "Update Preferences",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/notifications/preferences/",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"in_app_enabled\": true,\n  \"email_enabled\": true,\n  \"leave_notifications\": true,\n  \"attendance_notifications\": true,\n  \"payroll_notifications\": true,\n  \"contract_notifications\": true,\n  \"performance_notifications\": true,\n  \"training_notifications\": true,\n  \"benefit_notifications\": true,\n  \"system_notifications\": true\n}"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Broadcasts",
+          "item": [
+            {
+              "name": "List Broadcasts",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/notifications/broadcasts/"
+              }
+            },
+            {
+              "name": "Create Broadcast",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/notifications/broadcasts/",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"System Announcement\",\n  \"message\": \"This is a test notification broadcast.\",\n  \"notification_type\": \"ANNOUNCEMENT\",\n  \"priority\": \"NORMAL\",\n  \"channel\": \"IN_APP\",\n  \"audience\": \"ALL\",\n  \"action_url\": \"\",\n  \"scheduled_at\": null\n}"
+                }
+              }
+            },
+            {
+              "name": "Get Broadcast",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/notifications/broadcasts/{{notification_broadcast_id}}/"
+              }
+            },
+            {
+              "name": "Update Broadcast",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/notifications/broadcasts/{{notification_broadcast_id}}/",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"System Announcement\",\n  \"message\": \"Updated broadcast message.\",\n  \"notification_type\": \"ANNOUNCEMENT\",\n  \"priority\": \"NORMAL\",\n  \"channel\": \"IN_APP\",\n  \"audience\": \"ALL\",\n  \"action_url\": \"\",\n  \"scheduled_at\": null\n}"
+                }
+              }
+            },
+            {
+              "name": "Patch Broadcast",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/notifications/broadcasts/{{notification_broadcast_id}}/",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"message\": \"Patched broadcast message.\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Delete Broadcast",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": "{{base_url}}/api/notifications/broadcasts/{{notification_broadcast_id}}/"
+              }
+            },
+            {
+              "name": "Send Broadcast",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": "{{base_url}}/api/notifications/broadcasts/{{notification_broadcast_id}}/send/"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Training",
+      "item": [
+        {
+          "name": "Categories",
+          "item": [
+            {
+              "name": "List Categories",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/training/categories/"
+              }
+            },
+            {
+              "name": "Create Category",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/training/categories/",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Compliance\",\n  \"description\": \"Mandatory compliance training\",\n  \"is_active\": true\n}"
+                }
+              }
+            },
+            {
+              "name": "Get Category",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/training/categories/{{training_category_id}}/"
+              }
+            },
+            {
+              "name": "Update Category",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/training/categories/{{training_category_id}}/",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Compliance\",\n  \"description\": \"Updated compliance training\",\n  \"is_active\": true\n}"
+                }
+              }
+            },
+            {
+              "name": "Patch Category",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/training/categories/{{training_category_id}}/",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"description\": \"Patched category description\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Delete Category",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": "{{base_url}}/api/training/categories/{{training_category_id}}/"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Courses",
+          "item": [
+            {
+              "name": "List Courses",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/training/courses/"
+              }
+            },
+            {
+              "name": "Create Course",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/training/courses/",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"category\": \"{{training_category_id}}\",\n  \"title\": \"Workplace Safety\",\n  \"description\": \"Safety and compliance basics\",\n  \"duration_hours\": 8,\n  \"passing_score\": \"70.00\",\n  \"certificate_enabled\": true,\n  \"cost\": \"0.00\",\n  \"is_active\": true\n}"
+                }
+              }
+            },
+            {
+              "name": "Get Course",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/training/courses/{{training_course_id}}/"
+              }
+            },
+            {
+              "name": "Update Course",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/training/courses/{{training_course_id}}/",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"category\": \"{{training_category_id}}\",\n  \"title\": \"Workplace Safety\",\n  \"description\": \"Updated safety and compliance basics\",\n  \"duration_hours\": 10,\n  \"passing_score\": \"70.00\",\n  \"certificate_enabled\": true,\n  \"cost\": \"0.00\",\n  \"is_active\": true\n}"
+                }
+              }
+            },
+            {
+              "name": "Patch Course",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/training/courses/{{training_course_id}}/",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"duration_hours\": 10\n}"
+                }
+              }
+            },
+            {
+              "name": "Delete Course",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": "{{base_url}}/api/training/courses/{{training_course_id}}/"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sessions",
+          "item": [
+            {
+              "name": "List Sessions",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/training/sessions/"
+              }
+            },
+            {
+              "name": "Create Session",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/training/sessions/",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"course\": \"{{training_course_id}}\",\n  \"trainer\": \"{{user_id}}\",\n  \"venue\": \"Main Training Room\",\n  \"start_date\": \"2026-08-01T09:00:00Z\",\n  \"end_date\": \"2026-08-01T17:00:00Z\",\n  \"maximum_participants\": 25,\n  \"status\": \"SCHEDULED\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Get Session",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/training/sessions/{{training_session_id}}/"
+              }
+            },
+            {
+              "name": "Update Session",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/training/sessions/{{training_session_id}}/",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"course\": \"{{training_course_id}}\",\n  \"trainer\": \"{{user_id}}\",\n  \"venue\": \"Boardroom A\",\n  \"start_date\": \"2026-08-01T09:00:00Z\",\n  \"end_date\": \"2026-08-01T17:00:00Z\",\n  \"maximum_participants\": 25,\n  \"status\": \"SCHEDULED\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Patch Session",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/training/sessions/{{training_session_id}}/",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"venue\": \"Boardroom A\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Delete Session",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": "{{base_url}}/api/training/sessions/{{training_session_id}}/"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Enrollments",
+          "item": [
+            {
+              "name": "List Enrollments",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/training/enrollments/"
+              }
+            },
+            {
+              "name": "Get Enrollment",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/training/enrollments/{{training_enrollment_id}}/"
+              }
+            },
+            {
+              "name": "Enroll Employee",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/training/enroll/",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"employee_id\": \"{{employee_id}}\",\n  \"session_id\": \"{{training_session_id}}\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Approve Enrollment",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": "{{base_url}}/api/training/enrollments/{{training_enrollment_id}}/approve/"
+              }
+            },
+            {
+              "name": "Reject Enrollment",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": "{{base_url}}/api/training/enrollments/{{training_enrollment_id}}/reject/"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Attendance",
+          "item": [
+            {
+              "name": "List Attendance",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/training/attendance/"
+              }
+            },
+            {
+              "name": "Get Attendance",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/training/attendance/{{training_attendance_id}}/"
+              }
+            },
+            {
+              "name": "Record Attendance",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/training/attendance/",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"enrollment_id\": \"{{training_enrollment_id}}\",\n  \"attendance_status\": \"PRESENT\",\n  \"check_in\": \"2026-08-01T09:00:00Z\",\n  \"check_out\": \"2026-08-01T17:00:00Z\"\n}"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Assessments",
+          "item": [
+            {
+              "name": "List Assessments",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/training/assessments/"
+              }
+            },
+            {
+              "name": "Get Assessment",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/training/assessments/{{training_assessment_id}}/"
+              }
+            },
+            {
+              "name": "Record Assessment",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/training/assessment/",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"enrollment_id\": \"{{training_enrollment_id}}\",\n  \"score\": \"85.00\",\n  \"remarks\": \"Passed successfully\"\n}"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Certificates",
+          "item": [
+            {
+              "name": "List Certificates",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/training/certificates/"
+              }
+            },
+            {
+              "name": "Get Certificate",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/training/certificates/{{training_certificate_id}}/"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Recommendations",
+          "item": [
+            {
+              "name": "List Recommendations",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/training/recommendations/"
+              }
+            },
+            {
+              "name": "Get Recommendation",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/training/recommendations/{{training_recommendation_id}}/"
+              }
+            },
+            {
+              "name": "Recommend Training",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{base_url}}/api/training/recommend/",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"employee_id\": \"{{employee_id}}\",\n  \"performance_review_id\": \"{{review_id}}\",\n  \"recommended_course_id\": \"{{training_course_id}}\",\n  \"reason\": \"Recommended from performance review outcome\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Accept Recommendation",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": "{{base_url}}/api/training/recommendations/{{training_recommendation_id}}/accept/"
+              }
+            },
+            {
+              "name": "Decline Recommendation",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": "{{base_url}}/api/training/recommendations/{{training_recommendation_id}}/decline/"
+              }
+            }
+          ]
+        }
+      ]
     }
   ],
   "variable": [

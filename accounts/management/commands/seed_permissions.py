@@ -1,5 +1,6 @@
 from django.core.management.base import BaseCommand
-from accounts.models import Role, Permission, RolePermission
+
+from accounts.models import Permission, Role, RolePermission
 
 
 class Command(BaseCommand):
@@ -57,6 +58,16 @@ class Command(BaseCommand):
                 "performance.finalize",
                 "Finalize Performance Review",
             ),
+            ("TRAINING", "training.view", "View Training"),
+            ("TRAINING", "training.create", "Create Training"),
+            ("TRAINING", "training.update", "Update Training"),
+            ("TRAINING", "training.delete", "Delete Training"),
+            ("TRAINING", "training.enroll", "Enroll Training"),
+            ("TRAINING", "training.approve", "Approve Training"),
+            ("TRAINING", "training.reject", "Reject Training"),
+            ("TRAINING", "training.attendance", "Record Training Attendance"),
+            ("TRAINING", "training.assessment", "Record Training Assessment"),
+            ("TRAINING", "training.recommend", "Recommend Training"),
             ("REPORTS", "reports.view", "View Reports"),
             ("AUDIT", "audit.view", "View Audit Logs"),
             ("SETTINGS", "settings.manage", "Manage Settings"),
@@ -71,11 +82,25 @@ class Command(BaseCommand):
                 },
             )
 
+        all_training_permissions = [
+            "training.view",
+            "training.create",
+            "training.update",
+            "training.delete",
+            "training.enroll",
+            "training.approve",
+            "training.reject",
+            "training.attendance",
+            "training.assessment",
+            "training.recommend",
+        ]
+
         role_permissions = {
             "SUPER_ADMIN": [p[1] for p in permissions],
             "ADMIN": [
                 "accounts.manage",
                 "employees.view", "employees.create", "employees.update",
+                "employees.delete",
                 "salary.view", "salary.adjust",
                 "attendance.view", "attendance.manage",
                 "leave.view", "leave.approve",
@@ -89,11 +114,13 @@ class Command(BaseCommand):
                 "performance.manager_approve",
                 "performance.hr_approve",
                 "performance.finalize",
+                *all_training_permissions,
                 "payroll.view", "reports.view",
                 "settings.manage",
             ],
             "HR": [
                 "employees.view", "employees.create", "employees.update",
+                "employees.delete",
                 "salary.view", "salary.adjust",
                 "attendance.view", "attendance.manage",
                 "leave.view", "leave.approve",
@@ -105,6 +132,7 @@ class Command(BaseCommand):
                 "performance.submit_review",
                 "performance.hr_approve",
                 "performance.finalize",
+                *all_training_permissions,
                 "reports.view",
             ],
             "MANAGER": [
@@ -117,6 +145,10 @@ class Command(BaseCommand):
                 "performance.submit_review",
                 "performance.manager_approve",
                 "performance.update_progress",
+                "training.view",
+                "training.enroll",
+                "training.attendance",
+                "training.recommend",
                 "attendance.view",
                 "leave.view", "leave.approve",
                 "reports.view",
@@ -139,13 +171,16 @@ class Command(BaseCommand):
                 "benefits.view",
                 "performance.view",
                 "performance.update_progress",
+                "training.view",
             ],
         }
 
         for role_name, codenames in role_permissions.items():
             role = Role.objects.filter(name=role_name).first()
             if not role:
-                self.stdout.write(self.style.WARNING(f"Role not found: {role_name}"))
+                self.stdout.write(
+                    self.style.WARNING(f"Role not found: {role_name}")
+                )
                 continue
 
             for codename in codenames:
@@ -155,4 +190,6 @@ class Command(BaseCommand):
                     permission=permission,
                 )
 
-        self.stdout.write(self.style.SUCCESS("Permissions seeded successfully."))
+        self.stdout.write(
+            self.style.SUCCESS("Permissions seeded successfully.")
+        )

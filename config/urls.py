@@ -1,3 +1,5 @@
+from django.conf import settings
+from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
@@ -21,7 +23,13 @@ urlpatterns = [
     # Employee and Department APIs
     path("api/", include("employees.urls")),
     path("api/benefits/", include("benefits.urls")),
+    path("api/notifications/", include("notifications.urls")),
+    path(
+        "api/reporting/",
+        include("reports.urls"),
+    ),
     path("api/performance/", include("performance.urls")),
+    path("api/training/", include("training.urls")),
     path("api/", include(api_router.urls)),
     path("api/attendance/", include("attendance.urls")),
     path("api/", include("contracts.urls")),
@@ -37,3 +45,9 @@ urlpatterns = [
         name="swagger-ui",
     ),
 ]
+
+if settings.DEBUG:
+    urlpatterns += static(
+        settings.MEDIA_URL,
+        document_root=settings.MEDIA_ROOT,
+    )

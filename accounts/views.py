@@ -1,25 +1,28 @@
-from .serializers import (
-    RegisterSerializer,
-    UserSerializer,
-    UpdateProfileSerializer,
-    ChangePasswordSerializer,
-)
 try:
     from drf_spectacular.utils import extend_schema
-except ImportError:  # pragma: no cover
+except ImportError:
     def extend_schema(*args, **kwargs):
         def decorator(obj):
             return obj
         return decorator
+
 from rest_framework import status, permissions, serializers
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 from django.contrib.auth import authenticate
 
+from audit.services import log_activity
+from audit.utils import get_client_ip
+
 from .models import CustomUser
-from .serializers import RegisterSerializer, UserSerializer
-from .permissions import IsAdminOrSuperAdmin
+from .serializers import (
+    RegisterSerializer,
+    UserSerializer,
+    UpdateProfileSerializer,
+    ChangePasswordSerializer,
+)
+from .permissions import IsAdminOrSuperAdmin, RequiredPermission
 
 
 class LoginSerializer(serializers.Serializer):
@@ -27,10 +30,7 @@ class LoginSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True)
 
 
-@extend_schema(
-    request=RegisterSerializer,
-    responses={201: UserSerializer},
-)
+@extend_schema(request=RegisterSerializer, responses={201: UserSerializer})
 class RegisterView(APIView):
     permission_classes = [permissions.AllowAny]
 
@@ -50,9 +50,7 @@ class RegisterView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-@extend_schema(
-    request=LoginSerializer,
-)
+@extend_schema(request=LoginSerializer)
 class LoginView(APIView):
     permission_classes = [permissions.AllowAny]
 
@@ -80,6 +78,15 @@ class LoginView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
+        log_activity(
+            user=user,
+            action="LOGIN",
+            module="Accounts",
+            description=f"{user.username} logged into the system.",
+            object_id=user.id,
+            ip_address=get_client_ip(request),
+        )
+
         refresh = RefreshToken.for_user(user)
 
         return Response(
@@ -93,50 +100,15 @@ class LoginView(APIView):
         )
 
 
-class LogoutSerializer(serializers.Serializer):
-    refresh = serializers.CharField(required=False, allow_blank=True)
-
-
-@extend_schema(
-    request=LogoutSerializer,
-)
-class LogoutView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-
-    def post(self, request):
-        refresh_token = request.data.get("refresh")
-
-        if refresh_token:
-            try:
-                token = RefreshToken(refresh_token)
-                blacklist = getattr(token, "blacklist", None)
-
-                if blacklist is not None:
-                    blacklist()
-            except TokenError:
-                return Response(
-                    {"message": "Invalid or expired refresh token"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-        return Response(
-            {"message": "Logout successful"},
-            status=status.HTTP_200_OK,
-        )
-
-
-@extend_schema(
-    responses={200: UserSerializer},
-)
+@extend_schema(responses={200: UserSerializer})
 class CurrentUserView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
         return Response(UserSerializer(request.user).data)
-@extend_schema(
-    request=UpdateProfileSerializer,
-    responses={200: UserSerializer},
-)
+
+
+@extend_schema(request=UpdateProfileSerializer, responses={200: UserSerializer})
 class UpdateProfileView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -144,7 +116,7 @@ class UpdateProfileView(APIView):
         serializer = UpdateProfileSerializer(
             request.user,
             data=request.data,
-            partial=True
+            partial=True,
         )
 
         if serializer.is_valid():
@@ -160,9 +132,7 @@ class UpdateProfileView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-@extend_schema(
-    request=ChangePasswordSerializer,
-)
+@extend_schema(request=ChangePasswordSerializer)
 class ChangePasswordView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -190,9 +160,8 @@ class ChangePasswordView(APIView):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-@extend_schema(
-    responses={200: UserSerializer},
-)
+
+@extend_schema(responses={200: UserSerializer})
 class ApproveUserView(APIView):
     permission_classes = [IsAdminOrSuperAdmin]
 
@@ -215,3 +184,40 @@ class ApproveUserView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+class LogoutView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        refresh_token = request.data.get("refresh")
+
+        if not refresh_token:
+            return Response(
+                {"message": "Refresh token is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+
+            log_activity(
+                user=request.user,
+                action="LOGOUT",
+                module="Accounts",
+                description=f"{request.user.username} logged out.",
+                object_id=request.user.id,
+                ip_address=get_client_ip(request),
+            )
+
+            return Response(
+                {"message": "Logout successful"},
+                status=status.HTTP_200_OK,
+            )
+
+        except TokenError:
+            return Response(
+                {"message": "Invalid or expired token"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
