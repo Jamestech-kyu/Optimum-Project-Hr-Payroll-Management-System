@@ -6,6 +6,7 @@ from accounts.object_permissions import (
 )
 
 from .models import SalaryHistory
+from audit.mixins import AuditViewSetMixin
 from .serializers import (
     FinancialProfileSerializer,
     SalaryHistorySerializer,
@@ -15,6 +16,7 @@ from .services import adjust_employee_salary
 from rest_framework import status, viewsets
 from rest_framework.response import Response
 from rest_framework import filters
+from django_filters.rest_framework import DjangoFilterBackend
 from audit.services import log_activity
 from audit.utils import get_client_ip
 from accounts.permissions import RequiredPermission
@@ -50,9 +52,18 @@ from .serializers import (
 )
 
 
-class EmployeeViewSet(viewsets.ModelViewSet):
+class EmployeeViewSet(
+    AuditViewSetMixin,
+    viewsets.ModelViewSet,
+):
+    audit_module = "EMPLOYEES"
+
     serializer_class = EmployeeSerializer
-    filter_backends = [filters.SearchFilter]
+    filter_backends = [
+        DjangoFilterBackend,
+        filters.SearchFilter,
+        filters.OrderingFilter,
+    ]
 
     search_fields = [
         "employee_number",
@@ -64,6 +75,13 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         "phone_number",
         "national_id_number",
         "tax_pin",
+    ]
+    ordering_fields = "__all__"
+    ordering = ["-created_at"]
+    filterset_fields = [
+        "department",
+        "branch",
+        "employment_status",
     ]
 
     def get_permissions(self):
@@ -92,6 +110,14 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             "department",
             "designation",
             "manager",
+        ).prefetch_related(
+            "documents",
+            "skills",
+            "certifications",
+            "dependants",
+            "education",
+            "bank_accounts",
+            "assets",
         ).order_by("employee_number")
 
         return scope_employee_queryset(

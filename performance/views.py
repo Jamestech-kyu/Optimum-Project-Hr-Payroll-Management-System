@@ -1,10 +1,12 @@
 from django.shortcuts import get_object_or_404
-from rest_framework import permissions, status, viewsets
+from rest_framework import filters, permissions, status, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from drf_spectacular.utils import extend_schema
+from django_filters.rest_framework import DjangoFilterBackend
 
 from accounts.permissions import RequiredPermission
+from audit.mixins import AuditViewSetMixin
 from audit.services import log_activity
 from audit.utils import get_client_ip
 
@@ -39,13 +41,23 @@ from .services import (
 )
 
 
-class PerformanceCycleViewSet(viewsets.ModelViewSet):
+class PerformanceCycleViewSet(
+    AuditViewSetMixin,
+    viewsets.ModelViewSet,
+):
+    audit_module = "PERFORMANCE"
+
     queryset = PerformanceCycle.objects.all()
     serializer_class = PerformanceCycleSerializer
     permission_classes = [permissions.IsAuthenticated]
 
 
-class PerformanceGoalViewSet(viewsets.ModelViewSet):
+class PerformanceGoalViewSet(
+    AuditViewSetMixin,
+    viewsets.ModelViewSet,
+):
+    audit_module = "PERFORMANCE"
+
     queryset = PerformanceGoal.objects.select_related(
         "employee",
         "cycle",
@@ -54,7 +66,12 @@ class PerformanceGoalViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
 
-class PerformanceReviewViewSet(viewsets.ModelViewSet):
+class PerformanceReviewViewSet(
+    AuditViewSetMixin,
+    viewsets.ModelViewSet,
+):
+    audit_module = "PERFORMANCE"
+
     queryset = (
         PerformanceReview.objects
         .select_related(
@@ -66,6 +83,27 @@ class PerformanceReviewViewSet(viewsets.ModelViewSet):
 
     serializer_class = PerformanceReviewSerializer
     permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [
+        DjangoFilterBackend,
+        filters.SearchFilter,
+        filters.OrderingFilter,
+    ]
+    search_fields = [
+        "employee__employee_number",
+        "employee__first_name",
+        "employee__last_name",
+        "overall_rating",
+        "status",
+    ]
+    ordering_fields = "__all__"
+    ordering = ["-created_at"]
+    filterset_fields = [
+        "employee",
+        "reviewer",
+        "cycle",
+        "status",
+        "review_date",
+    ]
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)

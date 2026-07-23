@@ -1,14 +1,16 @@
-from rest_framework import permissions, status, viewsets
+from rest_framework import filters, permissions, status, viewsets
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema
 from django.http import FileResponse
+from django_filters.rest_framework import DjangoFilterBackend
 
 from .pdf_utils import generate_payslip_pdf
 from accounts.object_permissions import (
     check_related_employee_permission,
 )
 from accounts.permissions import RequiredPermission
+from audit.mixins import AuditViewSetMixin
 from .models import (
     PayrollRun,
     Payslip,
@@ -48,16 +50,45 @@ from .services import (
     cancel_payroll_run,
 )
 
-class PayrollRunViewSet(viewsets.ModelViewSet):
+class PayrollRunViewSet(
+    AuditViewSetMixin,
+    viewsets.ModelViewSet,
+):
+    audit_module = "PAYROLL"
+
     queryset = PayrollRun.objects.all()
     serializer_class = PayrollRunSerializer
     permission_classes = [permissions.IsAuthenticated]
 
 
-class PayslipViewSet(viewsets.ModelViewSet):
-    queryset = Payslip.objects.all()
+class PayslipViewSet(
+    AuditViewSetMixin,
+    viewsets.ModelViewSet,
+):
+    audit_module = "PAYROLL"
+
+    queryset = Payslip.objects.select_related(
+        "employee",
+        "payroll_run",
+    )
     serializer_class = PayslipSerializer
     permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [
+        DjangoFilterBackend,
+        filters.SearchFilter,
+        filters.OrderingFilter,
+    ]
+    search_fields = [
+        "employee__employee_number",
+        "employee__first_name",
+        "employee__last_name",
+    ]
+    ordering_fields = "__all__"
+    ordering = ["-generated_at"]
+    filterset_fields = [
+        "employee",
+        "payroll_run",
+    ]
 
     def get_object(self):
         return check_related_employee_permission(
@@ -71,61 +102,111 @@ class PayslipViewSet(viewsets.ModelViewSet):
         )
 
 
-class PayrollAllowanceViewSet(viewsets.ModelViewSet):
+class PayrollAllowanceViewSet(
+    AuditViewSetMixin,
+    viewsets.ModelViewSet,
+):
+    audit_module = "PAYROLL"
+
     queryset = PayrollAllowance.objects.all()
     serializer_class = PayrollAllowanceSerializer
     permission_classes = [permissions.IsAuthenticated]
 
 
-class PayrollDeductionViewSet(viewsets.ModelViewSet):
+class PayrollDeductionViewSet(
+    AuditViewSetMixin,
+    viewsets.ModelViewSet,
+):
+    audit_module = "PAYROLL"
+
     queryset = PayrollDeduction.objects.all()
     serializer_class = PayrollDeductionSerializer
     permission_classes = [permissions.IsAuthenticated]
 
 
-class BankPaymentViewSet(viewsets.ModelViewSet):
+class BankPaymentViewSet(
+    AuditViewSetMixin,
+    viewsets.ModelViewSet,
+):
+    audit_module = "PAYROLL"
+
     queryset = BankPayment.objects.all()
     serializer_class = BankPaymentSerializer
     permission_classes = [permissions.IsAuthenticated]
 
 
-class PayComponentViewSet(viewsets.ModelViewSet):
+class PayComponentViewSet(
+    AuditViewSetMixin,
+    viewsets.ModelViewSet,
+):
+    audit_module = "PAYROLL"
+
     queryset = PayComponent.objects.all()
     serializer_class = PayComponentSerializer
     permission_classes = [permissions.IsAuthenticated]
 
 
-class EmployeePayComponentViewSet(viewsets.ModelViewSet):
+class EmployeePayComponentViewSet(
+    AuditViewSetMixin,
+    viewsets.ModelViewSet,
+):
+    audit_module = "PAYROLL"
+
     queryset = EmployeePayComponent.objects.all()
     serializer_class = EmployeePayComponentSerializer
     permission_classes = [permissions.IsAuthenticated]
 
 
-class TaxBandViewSet(viewsets.ModelViewSet):
+class TaxBandViewSet(
+    AuditViewSetMixin,
+    viewsets.ModelViewSet,
+):
+    audit_module = "PAYROLL"
+
     queryset = TaxBand.objects.all()
     serializer_class = TaxBandSerializer
     permission_classes = [permissions.IsAuthenticated]
 
 
-class StatutoryRateViewSet(viewsets.ModelViewSet):
+class StatutoryRateViewSet(
+    AuditViewSetMixin,
+    viewsets.ModelViewSet,
+):
+    audit_module = "PAYROLL"
+
     queryset = StatutoryRate.objects.all()
     serializer_class = StatutoryRateSerializer
     permission_classes = [permissions.IsAuthenticated]
 
 
-class CurrencyViewSet(viewsets.ModelViewSet):
+class CurrencyViewSet(
+    AuditViewSetMixin,
+    viewsets.ModelViewSet,
+):
+    audit_module = "PAYROLL"
+
     queryset = Currency.objects.all()
     serializer_class = CurrencySerializer
     permission_classes = [permissions.IsAuthenticated]
 
 
-class ExchangeRateViewSet(viewsets.ModelViewSet):
+class ExchangeRateViewSet(
+    AuditViewSetMixin,
+    viewsets.ModelViewSet,
+):
+    audit_module = "PAYROLL"
+
     queryset = ExchangeRate.objects.all()
     serializer_class = ExchangeRateSerializer
     permission_classes = [permissions.IsAuthenticated]
 
 
-class PayrollPolicyViewSet(viewsets.ModelViewSet):
+class PayrollPolicyViewSet(
+    AuditViewSetMixin,
+    viewsets.ModelViewSet,
+):
+    audit_module = "PAYROLL"
+
     queryset = PayrollPolicy.objects.all()
     serializer_class = PayrollPolicySerializer
     permission_classes = [permissions.IsAuthenticated]

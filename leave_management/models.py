@@ -104,6 +104,20 @@ class LeaveRequest(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
+        indexes = [
+            models.Index(
+                fields=["employee", "status"],
+                name="leave_emp_status_idx",
+            ),
+            models.Index(
+                fields=["status", "start_date"],
+                name="leave_status_start_idx",
+            ),
+            models.Index(
+                fields=["start_date", "end_date"],
+                name="leave_date_range_idx",
+            ),
+        ]
 
     def __str__(self):
         return f"{self.employee.full_name} - {self.leave_type.name}"

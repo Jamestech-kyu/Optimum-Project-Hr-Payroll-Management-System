@@ -1,10 +1,12 @@
 from django.shortcuts import get_object_or_404
-from rest_framework import permissions, status, viewsets
+from rest_framework import filters, permissions, status, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from drf_spectacular.utils import extend_schema
+from django_filters.rest_framework import DjangoFilterBackend
 
 from accounts.permissions import RequiredPermission
+from audit.mixins import AuditViewSetMixin
 from audit.services import log_activity
 from audit.utils import get_client_ip
 
@@ -44,13 +46,23 @@ from .services import (
 )
 
 
-class TrainingCategoryViewSet(viewsets.ModelViewSet):
+class TrainingCategoryViewSet(
+    AuditViewSetMixin,
+    viewsets.ModelViewSet,
+):
+    audit_module = "TRAINING"
+
     queryset = TrainingCategory.objects.all()
     serializer_class = TrainingCategorySerializer
     permission_classes = [permissions.IsAuthenticated]
 
 
-class TrainingCourseViewSet(viewsets.ModelViewSet):
+class TrainingCourseViewSet(
+    AuditViewSetMixin,
+    viewsets.ModelViewSet,
+):
+    audit_module = "TRAINING"
+
     queryset = TrainingCourse.objects.select_related(
         "category"
     )
@@ -59,7 +71,12 @@ class TrainingCourseViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
 
-class TrainingSessionViewSet(viewsets.ModelViewSet):
+class TrainingSessionViewSet(
+    AuditViewSetMixin,
+    viewsets.ModelViewSet,
+):
+    audit_module = "TRAINING"
+
     queryset = TrainingSession.objects.select_related(
         "course",
         "trainer",
@@ -69,7 +86,12 @@ class TrainingSessionViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
 
-class TrainingEnrollmentViewSet(viewsets.ReadOnlyModelViewSet):
+class TrainingEnrollmentViewSet(
+    AuditViewSetMixin,
+    viewsets.ReadOnlyModelViewSet,
+):
+    audit_module = "TRAINING"
+
     queryset = TrainingEnrollment.objects.select_related(
         "employee",
         "session__course",
@@ -77,6 +99,26 @@ class TrainingEnrollmentViewSet(viewsets.ReadOnlyModelViewSet):
 
     serializer_class = TrainingEnrollmentSerializer
     permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [
+        DjangoFilterBackend,
+        filters.SearchFilter,
+        filters.OrderingFilter,
+    ]
+    search_fields = [
+        "employee__employee_number",
+        "employee__first_name",
+        "employee__last_name",
+        "session__course__title",
+        "status",
+    ]
+    ordering_fields = "__all__"
+    ordering = ["-enrolled_at"]
+    filterset_fields = [
+        "employee",
+        "session",
+        "session__course",
+        "status",
+    ]
 
 
 class TrainingAttendanceViewSet(viewsets.ReadOnlyModelViewSet):

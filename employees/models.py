@@ -151,22 +151,26 @@ class Employee(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ["employee_number"]
+        ordering = ["-created_at"]
 
-    def __str__(self):
-        return f"{self.employee_number} - {self.first_name} {self.last_name}"
-
-    @property
-    def full_name(self):
-        return " ".join(
-            part
-            for part in [
-                self.first_name,
-                self.middle_name,
-                self.last_name,
-            ]
-            if part
-        )
+        indexes = [
+            models.Index(
+                fields=["employment_status"],
+                name="emp_status_idx",
+            ),
+            models.Index(
+                fields=["department", "employment_status"],
+                name="emp_dept_status_idx",
+            ),
+            models.Index(
+                fields=["branch", "employment_status"],
+                name="emp_branch_status_idx",
+            ),
+            models.Index(
+                fields=["manager"],
+                name="emp_manager_idx",
+            ),
+        ]
 
     @property
     def gross_salary(self):

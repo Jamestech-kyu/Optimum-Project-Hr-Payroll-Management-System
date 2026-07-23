@@ -1,6 +1,7 @@
-from rest_framework import viewsets, permissions, status
+from rest_framework import filters, viewsets, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from employees.models import Employee
 from accounts.permissions import RequiredPermission
@@ -9,6 +10,7 @@ from accounts.object_permissions import (
     check_related_employee_permission,
 )
 from accounts.services import user_has_permission
+from audit.mixins import AuditViewSetMixin
 from .models import (
     LeaveType,
     LeaveBalance,
@@ -44,7 +46,12 @@ from .services import (
     partial_update=extend_schema(tags=["Leave Management"]),
     destroy=extend_schema(tags=["Leave Management"]),
 )
-class LeaveTypeViewSet(viewsets.ModelViewSet):
+class LeaveTypeViewSet(
+    AuditViewSetMixin,
+    viewsets.ModelViewSet,
+):
+    audit_module = "LEAVE"
+
     queryset = LeaveType.objects.all()
     serializer_class = LeaveTypeSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -58,7 +65,12 @@ class LeaveTypeViewSet(viewsets.ModelViewSet):
     partial_update=extend_schema(tags=["Leave Management"]),
     destroy=extend_schema(tags=["Leave Management"]),
 )
-class LeaveBalanceViewSet(viewsets.ModelViewSet):
+class LeaveBalanceViewSet(
+    AuditViewSetMixin,
+    viewsets.ModelViewSet,
+):
+    audit_module = "LEAVE"
+
     serializer_class = LeaveBalanceSerializer
 
     def get_permissions(self):
@@ -84,8 +96,34 @@ class LeaveBalanceViewSet(viewsets.ModelViewSet):
             employee_field="employee",
             permission_codename="leave.view",
         )
-class LeaveRequestViewSet(viewsets.ModelViewSet):
+class LeaveRequestViewSet(
+    AuditViewSetMixin,
+    viewsets.ModelViewSet,
+):
+    audit_module = "LEAVE"
+
     serializer_class = LeaveRequestSerializer
+    filter_backends = [
+        DjangoFilterBackend,
+        filters.SearchFilter,
+        filters.OrderingFilter,
+    ]
+    search_fields = [
+        "employee__employee_number",
+        "employee__first_name",
+        "employee__last_name",
+        "leave_type__name",
+        "reason",
+    ]
+    ordering_fields = "__all__"
+    ordering = ["-created_at"]
+    filterset_fields = [
+        "employee",
+        "leave_type",
+        "status",
+        "start_date",
+        "end_date",
+    ]
 
     def get_permissions(self):
         permission_map = {

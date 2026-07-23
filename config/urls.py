@@ -24,10 +24,8 @@ urlpatterns = [
     path("api/", include("employees.urls")),
     path("api/benefits/", include("benefits.urls")),
     path("api/notifications/", include("notifications.urls")),
-    path(
-        "api/reporting/",
-        include("reports.urls"),
-    ),
+    path("api/reporting/",include("reports.urls"),),
+    path("api/audit/",include("audit.urls"),),
     path("api/performance/", include("performance.urls")),
     path("api/training/", include("training.urls")),
     path("api/", include(api_router.urls)),

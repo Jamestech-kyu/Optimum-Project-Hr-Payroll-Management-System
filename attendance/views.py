@@ -1,7 +1,8 @@
 from django.utils import timezone
-from rest_framework import status, viewsets, permissions
+from rest_framework import filters, status, viewsets, permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from django_filters.rest_framework import DjangoFilterBackend
 from accounts.permissions import RequiredPermission
 from accounts.object_permissions import (
     check_related_employee_permission,
@@ -10,6 +11,7 @@ from accounts.scopes import scope_related_employee_queryset
 from accounts.services import user_has_permission
 
 
+from audit.mixins import AuditViewSetMixin
 from audit.utils import get_client_ip
 from employees.models import Employee
 from .services import (
@@ -37,26 +39,66 @@ from .serializers import (
 )
 
 
-class WorkLocationViewSet(viewsets.ModelViewSet):
+class WorkLocationViewSet(
+    AuditViewSetMixin,
+    viewsets.ModelViewSet,
+):
+    audit_module = "ATTENDANCE"
+
     queryset = WorkLocation.objects.all()
     serializer_class = WorkLocationSerializer
     permission_classes = [permissions.IsAuthenticated]
 
 
-class ShiftViewSet(viewsets.ModelViewSet):
+class ShiftViewSet(
+    AuditViewSetMixin,
+    viewsets.ModelViewSet,
+):
+    audit_module = "ATTENDANCE"
+
     queryset = Shift.objects.all()
     serializer_class = ShiftSerializer
     permission_classes = [permissions.IsAuthenticated]
 
 
-class EmployeeAttendanceAssignmentViewSet(viewsets.ModelViewSet):
+class EmployeeAttendanceAssignmentViewSet(
+    AuditViewSetMixin,
+    viewsets.ModelViewSet,
+):
+    audit_module = "ATTENDANCE"
+
     queryset = EmployeeAttendanceAssignment.objects.all()
     serializer_class = EmployeeAttendanceAssignmentSerializer
     permission_classes = [permissions.IsAuthenticated]
 
 
-class AttendanceRecordViewSet(viewsets.ModelViewSet):
+class AttendanceRecordViewSet(
+    AuditViewSetMixin,
+    viewsets.ModelViewSet,
+):
+    audit_module = "ATTENDANCE"
+
     serializer_class = AttendanceRecordSerializer
+    filter_backends = [
+        DjangoFilterBackend,
+        filters.SearchFilter,
+        filters.OrderingFilter,
+    ]
+    search_fields = [
+        "employee__employee_number",
+        "employee__first_name",
+        "employee__last_name",
+        "status",
+    ]
+    ordering_fields = "__all__"
+    ordering = ["-created_at"]
+    filterset_fields = [
+        "employee",
+        "shift",
+        "work_location",
+        "status",
+        "date",
+    ]
 
     def get_permissions(self):
         permission_map = {
@@ -123,7 +165,12 @@ class AttendanceLocationLogViewSet(viewsets.ReadOnlyModelViewSet):
         )
 
 
-class AttendanceCorrectionRequestViewSet(viewsets.ModelViewSet):
+class AttendanceCorrectionRequestViewSet(
+    AuditViewSetMixin,
+    viewsets.ModelViewSet,
+):
+    audit_module = "ATTENDANCE"
+
     serializer_class = AttendanceCorrectionRequestSerializer
 
     def get_permissions(self):

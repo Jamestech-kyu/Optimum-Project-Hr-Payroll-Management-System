@@ -4117,7 +4117,7 @@
       ]
     },
     {
-      "name": "Reporting",
+      "name": "Reports",
       "item": [
         {
           "name": "Report Templates",
@@ -4127,7 +4127,7 @@
               "request": {
                 "method": "GET",
                 "header": [],
-                "url": "{{base_url}}/api/reporting/templates/"
+                "url": "{{base_url}}/api/reports/templates/"
               }
             },
             {
@@ -4140,7 +4140,7 @@
                     "value": "application/json"
                   }
                 ],
-                "url": "{{base_url}}/api/reporting/templates/",
+                "url": "{{base_url}}/api/reports/templates/",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"name\": \"Employee Summary\",\n  \"report_type\": \"EMPLOYEE\",\n  \"description\": \"Employee summary report\",\n  \"default_export_format\": \"JSON\",\n  \"is_active\": true\n}"
@@ -4152,7 +4152,7 @@
               "request": {
                 "method": "GET",
                 "header": [],
-                "url": "{{base_url}}/api/reporting/templates/{{report_template_id}}/"
+                "url": "{{base_url}}/api/reports/templates/{{report_template_id}}/"
               }
             },
             {
@@ -4165,7 +4165,7 @@
                     "value": "application/json"
                   }
                 ],
-                "url": "{{base_url}}/api/reporting/templates/{{report_template_id}}/",
+                "url": "{{base_url}}/api/reports/templates/{{report_template_id}}/",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"name\": \"Employee Summary\",\n  \"report_type\": \"EMPLOYEE\",\n  \"description\": \"Updated employee summary report\",\n  \"default_export_format\": \"JSON\",\n  \"is_active\": true\n}"
@@ -4182,7 +4182,7 @@
                     "value": "application/json"
                   }
                 ],
-                "url": "{{base_url}}/api/reporting/templates/{{report_template_id}}/",
+                "url": "{{base_url}}/api/reports/templates/{{report_template_id}}/",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"description\": \"Patched report template description\"\n}"
@@ -4194,7 +4194,7 @@
               "request": {
                 "method": "DELETE",
                 "header": [],
-                "url": "{{base_url}}/api/reporting/templates/{{report_template_id}}/"
+                "url": "{{base_url}}/api/reports/templates/{{report_template_id}}/"
               }
             }
           ]
@@ -4212,7 +4212,7 @@
                     "value": "application/json"
                   }
                 ],
-                "url": "{{base_url}}/api/reporting/generate/",
+                "url": "{{base_url}}/api/reports/generate/",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"template_id\": \"{{report_template_id}}\",\n  \"export_format\": \"JSON\",\n  \"filters\": {\n    \"employee_id\": \"{{employee_id}}\"\n  }\n}"
@@ -4229,7 +4229,7 @@
                     "value": "application/json"
                   }
                 ],
-                "url": "{{base_url}}/api/reporting/preview/",
+                "url": "{{base_url}}/api/reports/preview/",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"report_type\": \"EMPLOYEE\",\n  \"filters\": {\n    \"employee_id\": \"{{employee_id}}\"\n  }\n}"
@@ -4241,7 +4241,7 @@
               "request": {
                 "method": "GET",
                 "header": [],
-                "url": "{{base_url}}/api/reporting/summary/"
+                "url": "{{base_url}}/api/reports/summary/"
               }
             }
           ]
@@ -4254,7 +4254,7 @@
               "request": {
                 "method": "GET",
                 "header": [],
-                "url": "{{base_url}}/api/reporting/executions/"
+                "url": "{{base_url}}/api/reports/executions/"
               }
             },
             {
@@ -4262,7 +4262,7 @@
               "request": {
                 "method": "GET",
                 "header": [],
-                "url": "{{base_url}}/api/reporting/executions/{{report_execution_id}}/"
+                "url": "{{base_url}}/api/reports/executions/{{report_execution_id}}/"
               }
             },
             {
@@ -4270,7 +4270,7 @@
               "request": {
                 "method": "GET",
                 "header": [],
-                "url": "{{base_url}}/api/reporting/executions/{{report_execution_id}}/download/"
+                "url": "{{base_url}}/api/reports/executions/{{report_execution_id}}/download/"
               }
             }
           ]
@@ -4283,7 +4283,7 @@
               "request": {
                 "method": "GET",
                 "header": [],
-                "url": "{{base_url}}/api/reporting/saved/"
+                "url": "{{base_url}}/api/reports/saved/"
               }
             },
             {
@@ -4296,7 +4296,7 @@
                     "value": "application/json"
                   }
                 ],
-                "url": "{{base_url}}/api/reporting/saved/",
+                "url": "{{base_url}}/api/reports/saved/",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"name\": \"My Employee Report\",\n  \"report_type\": \"EMPLOYEE\",\n  \"filters\": {\n    \"employee_id\": \"{{employee_id}}\"\n  },\n  \"export_format\": \"JSON\",\n  \"is_public\": false\n}"
@@ -4308,7 +4308,7 @@
               "request": {
                 "method": "GET",
                 "header": [],
-                "url": "{{base_url}}/api/reporting/saved/{{saved_report_id}}/"
+                "url": "{{base_url}}/api/reports/saved/{{saved_report_id}}/"
               }
             },
             {
@@ -4321,7 +4321,7 @@
                     "value": "application/json"
                   }
                 ],
-                "url": "{{base_url}}/api/reporting/saved/{{saved_report_id}}/",
+                "url": "{{base_url}}/api/reports/saved/{{saved_report_id}}/",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"name\": \"My Employee Report\",\n  \"report_type\": \"EMPLOYEE\",\n  \"filters\": {\n    \"employee_id\": \"{{employee_id}}\"\n  },\n  \"export_format\": \"JSON\",\n  \"is_public\": false\n}"
@@ -4338,7 +4338,7 @@
                     "value": "application/json"
                   }
                 ],
-                "url": "{{base_url}}/api/reporting/saved/{{saved_report_id}}/",
+                "url": "{{base_url}}/api/reports/saved/{{saved_report_id}}/",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"name\": \"Updated Employee Report\"\n}"
@@ -4350,7 +4350,7 @@
               "request": {
                 "method": "DELETE",
                 "header": [],
-                "url": "{{base_url}}/api/reporting/saved/{{saved_report_id}}/"
+                "url": "{{base_url}}/api/reports/saved/{{saved_report_id}}/"
               }
             },
             {
@@ -4358,7 +4358,76 @@
               "request": {
                 "method": "POST",
                 "header": [],
-                "url": "{{base_url}}/api/reporting/saved/{{saved_report_id}}/run/"
+                "url": "{{base_url}}/api/reports/saved/{{saved_report_id}}/run/"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Dashboard",
+          "item": [
+            {
+              "name": "Dashboard Overview",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/reports/dashboard/overview/"
+              }
+            },
+            {
+              "name": "Employee Dashboard",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/reports/dashboard/employees/"
+              }
+            },
+            {
+              "name": "Attendance Dashboard",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/reports/dashboard/attendance/"
+              }
+            },
+            {
+              "name": "Leave Dashboard",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/reports/dashboard/leave/"
+              }
+            },
+            {
+              "name": "Payroll Dashboard",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/reports/dashboard/payroll/"
+              }
+            },
+            {
+              "name": "Performance Dashboard",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/reports/dashboard/performance/"
+              }
+            },
+            {
+              "name": "Training Dashboard",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/reports/dashboard/training/"
+              }
+            },
+            {
+              "name": "My Role Dashboard",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/reports/dashboard/my-dashboard/"
               }
             }
           ]
@@ -4977,6 +5046,32 @@
                 "method": "POST",
                 "header": [],
                 "url": "{{base_url}}/api/training/recommendations/{{training_recommendation_id}}/decline/"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Audit",
+      "item": [
+        {
+          "name": "Audit Logs",
+          "item": [
+            {
+              "name": "List Audit Logs",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/audit/logs/"
+              }
+            },
+            {
+              "name": "Get Audit Log",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/audit/logs/{{audit_log_id}}/"
               }
             }
           ]

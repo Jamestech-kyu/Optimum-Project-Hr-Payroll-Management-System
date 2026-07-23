@@ -55,6 +55,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'drf_spectacular',
+    'django_filters',
 
     # Local Apps
     'accounts',
@@ -70,7 +71,7 @@ INSTALLED_APPS = [
     'contracts',
     'benefits', 
     'performance',
-    'training'
+    'training',
 ]
 
 # -----------------------------------------------------------------------------
@@ -195,6 +196,13 @@ REST_FRAMEWORK = {
     ),
 
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+
+    'DEFAULT_PAGINATION_CLASS': 'config.pagination.StandardResultsPagination',
+    'PAGE_SIZE': 20,
+
+    'DEFAULT_FILTER_BACKENDS': (
+        'django_filters.rest_framework.DjangoFilterBackend',
+    ),
 }
 
 # -----------------------------------------------------------------------------

@@ -178,7 +178,17 @@ class PayrollRun(models.Model):
 
     class Meta:
         unique_together = ("month", "year")
-        ordering = ["-year", "-month"]
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(
+                fields=["year", "month", "status"],
+                name="payrun_year_month_status_idx",
+            ),
+            models.Index(
+                fields=["created_at"],
+                name="payrun_created_idx",
+            ),
+        ]
 
     def __str__(self):
         return f"Payroll {self.month}/{self.year}"
@@ -236,6 +246,17 @@ class Payslip(models.Model):
 
     class Meta:
         unique_together = ("payroll_run", "employee")
+        ordering = ["-generated_at"]
+        indexes = [
+            models.Index(
+                fields=["employee", "payroll_run"],
+                name="payslip_emp_run_idx",
+            ),
+            models.Index(
+                fields=["payroll_run"],
+                name="payslip_run_idx",
+            ),
+        ]
 
     def __str__(self):
         return f"{self.employee.full_name} - {self.payroll_run}"

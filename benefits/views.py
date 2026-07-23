@@ -5,6 +5,7 @@ from rest_framework.views import APIView
 from drf_spectacular.utils import extend_schema
 
 from accounts.permissions import RequiredPermission
+from audit.mixins import AuditViewSetMixin
 from audit.services import log_activity
 from audit.utils import get_client_ip
 
@@ -29,19 +30,34 @@ from .services import (
 )
 
 
-class BenefitPlanViewSet(viewsets.ModelViewSet):
+class BenefitPlanViewSet(
+    AuditViewSetMixin,
+    viewsets.ModelViewSet,
+):
+    audit_module = "BENEFITS"
+
     queryset = BenefitPlan.objects.all()
     serializer_class = BenefitPlanSerializer
     permission_classes = [permissions.IsAuthenticated]
 
 
-class EnrollmentWindowViewSet(viewsets.ModelViewSet):
+class EnrollmentWindowViewSet(
+    AuditViewSetMixin,
+    viewsets.ModelViewSet,
+):
+    audit_module = "BENEFITS"
+
     queryset = EnrollmentWindow.objects.all()
     serializer_class = EnrollmentWindowSerializer
     permission_classes = [permissions.IsAuthenticated]
 
 
-class EmployeeBenefitViewSet(viewsets.ModelViewSet):
+class EmployeeBenefitViewSet(
+    AuditViewSetMixin,
+    viewsets.ModelViewSet,
+):
+    audit_module = "BENEFITS"
+
     queryset = EmployeeBenefit.objects.select_related(
         "employee",
         "benefit_plan",

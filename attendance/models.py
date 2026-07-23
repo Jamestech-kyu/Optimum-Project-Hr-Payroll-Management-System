@@ -198,6 +198,16 @@ class AttendanceRecord(models.Model):
             ),
         ]
         ordering = ["-date", "-check_in_time"]
+        indexes = [
+            models.Index(
+                fields=["date", "status"],
+                name="attendance_date_status_idx",
+            ),
+            models.Index(
+                fields=["employee", "status"],
+                name="attendance_emp_status_idx",
+            ),
+        ]
 
     def __str__(self):
         return f"{self.employee.full_name} - {self.date}"

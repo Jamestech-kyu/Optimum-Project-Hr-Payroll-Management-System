@@ -5,11 +5,21 @@ from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from .role_dashboard_services import get_role_dashboard
 
 from .models import (
     ReportExecution,
     ReportTemplate,
     SavedReport,
+)
+from .dashboard_services import (
+    attendance_statistics,
+    dashboard_overview,
+    employee_statistics,
+    leave_statistics,
+    payroll_statistics,
+    performance_statistics,
+    training_statistics,
 )
 from .serializers import (
     ReportExecutionSerializer,
@@ -22,7 +32,15 @@ from .services import (
     create_report_execution,
     generate_report_data,
 )
-
+from .dashboard_services import (
+    attendance_statistics,
+    dashboard_overview,
+    employee_statistics,
+    leave_statistics,
+    payroll_statistics,
+    performance_statistics,
+    training_statistics,
+)
 
 class ReportTemplateViewSet(viewsets.ModelViewSet):
     serializer_class = ReportTemplateSerializer
@@ -325,4 +343,82 @@ class ReportSummaryView(APIView):
                     status="FAILED"
                 ).count(),
             }
+        )
+
+
+class DashboardOverviewView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        return Response(
+            dashboard_overview(),
+            status=status.HTTP_200_OK,
+        )
+
+
+class EmployeeDashboardView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        return Response(
+            employee_statistics(),
+            status=status.HTTP_200_OK,
+        )
+
+
+class AttendanceDashboardView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        return Response(
+            attendance_statistics(),
+            status=status.HTTP_200_OK,
+        )
+
+
+class LeaveDashboardView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        return Response(
+            leave_statistics(),
+            status=status.HTTP_200_OK,
+        )
+
+
+class PayrollDashboardView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        return Response(
+            payroll_statistics(),
+            status=status.HTTP_200_OK,
+        )
+
+
+class PerformanceDashboardView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        return Response(
+            performance_statistics(),
+            status=status.HTTP_200_OK,
+        )
+
+
+class TrainingDashboardView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        return Response(
+            training_statistics(),
+            status=status.HTTP_200_OK,
+        )
+class RoleDashboardView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        return Response(
+            get_role_dashboard(request.user),
+            status=status.HTTP_200_OK,
         )

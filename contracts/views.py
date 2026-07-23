@@ -11,6 +11,7 @@ from accounts.object_permissions import (
 )
 from accounts.permissions import RequiredPermission
 from accounts.scopes import scope_related_employee_queryset
+from audit.mixins import AuditViewSetMixin
 from audit.services import log_activity
 from audit.utils import get_client_ip
 
@@ -32,7 +33,12 @@ from .services import (
 )
 
 
-class EmploymentContractViewSet(viewsets.ModelViewSet):
+class EmploymentContractViewSet(
+    AuditViewSetMixin,
+    viewsets.ModelViewSet,
+):
+    audit_module = "CONTRACTS"
+
     serializer_class = EmploymentContractSerializer
 
     def get_permissions(self):
