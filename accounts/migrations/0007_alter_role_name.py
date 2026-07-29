@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('accounts', '0006_add_operational_roles'),
+        ('accounts', '0005_approvalworkflow_userdelegation_approvalstep'),
     ]
 
     operations = [
