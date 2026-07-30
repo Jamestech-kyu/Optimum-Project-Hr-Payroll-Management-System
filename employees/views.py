@@ -16,7 +16,7 @@ from .services import adjust_employee_salary
 from rest_framework import status, viewsets
 from rest_framework.response import Response
 from rest_framework import filters
-from django_filters.rest_framework import DjangoFilterBackend
+from config.filters import SchemaCompatibleDjangoFilterBackend
 from audit.services import log_activity
 from audit.utils import get_client_ip
 from accounts.permissions import RequiredPermission
@@ -60,7 +60,7 @@ class EmployeeViewSet(
 
     serializer_class = EmployeeSerializer
     filter_backends = [
-        DjangoFilterBackend,
+        SchemaCompatibleDjangoFilterBackend,
         filters.SearchFilter,
         filters.OrderingFilter,
     ]

@@ -2,7 +2,7 @@ from django.utils import timezone
 from rest_framework import filters, status, viewsets, permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from django_filters.rest_framework import DjangoFilterBackend
+from config.filters import SchemaCompatibleDjangoFilterBackend
 from accounts.permissions import RequiredPermission
 from accounts.object_permissions import (
     check_related_employee_permission,
@@ -80,7 +80,7 @@ class AttendanceRecordViewSet(
 
     serializer_class = AttendanceRecordSerializer
     filter_backends = [
-        DjangoFilterBackend,
+        SchemaCompatibleDjangoFilterBackend,
         filters.SearchFilter,
         filters.OrderingFilter,
     ]

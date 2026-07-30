@@ -1,6 +1,14 @@
-from django.db import models
+import uuid
+
 from django.conf import settings
+from django.core.validators import (
+    FileExtensionValidator,
+    MaxValueValidator,
+    MinValueValidator,
+)
+from django.db import models
 from employees.models import Employee
+
 
 class PayComponent(models.Model):
     COMPONENT_TYPE_CHOICES = [
@@ -145,15 +153,30 @@ class PayrollPolicy(models.Model):
 class PayrollRun(models.Model):
     STATUS_CHOICES = [
         ("DRAFT", "Draft"),
+        ("QUEUED", "Queued"),
+        ("PROCESSING", "Processing"),
+        ("COMPLETED", "Completed"),
+        ("COMPLETED_WITH_ERRORS", "Completed With Errors"),
+        ("FAILED", "Failed"),
         ("PENDING_APPROVAL", "Pending Approval"),
         ("APPROVED", "Approved"),
         ("FINALIZED", "Finalized"),
         ("CANCELLED", "Cancelled"),
     ]
 
-    month = models.PositiveIntegerField()
+    month = models.PositiveIntegerField(
+        validators=[
+            MinValueValidator(1),
+            MaxValueValidator(12),
+        ]
+    )
     year = models.PositiveIntegerField()
-    status = models.CharField(max_length=30, choices=STATUS_CHOICES, default="DRAFT")
+    status = models.CharField(
+        max_length=30,
+        choices=STATUS_CHOICES,
+        default="DRAFT",
+        db_index=True,
+    )
 
     processed_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -171,10 +194,32 @@ class PayrollRun(models.Model):
         related_name="payroll_runs_approved",
     )
 
+    celery_task_id = models.CharField(
+        max_length=255,
+        blank=True,
+        db_index=True,
+    )
+    total_employees = models.PositiveIntegerField(default=0)
+    processed_employees = models.PositiveIntegerField(default=0)
+    failed_employees = models.PositiveIntegerField(default=0)
+    progress_percentage = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=0,
+    )
+    failure_details = models.JSONField(
+        default=list,
+        blank=True,
+    )
+
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
     processed_at = models.DateTimeField(null=True, blank=True)
     approved_at = models.DateTimeField(null=True, blank=True)
+    error_message = models.TextField(blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         unique_together = ("month", "year")
@@ -187,6 +232,12 @@ class PayrollRun(models.Model):
             models.Index(
                 fields=["created_at"],
                 name="payrun_created_idx",
+            ),
+        ]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(month__gte=1, month__lte=12),
+                name="valid_payroll_month",
             ),
         ]
 
@@ -241,6 +292,28 @@ class Payslip(models.Model):
     total_deductions = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     tax_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     net_pay = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+
+    verification_code = models.UUIDField(
+        default=uuid.uuid4,
+        editable=False,
+        unique=True,
+    )
+
+    pdf_file = models.FileField(
+        upload_to="payslips/%Y/%m/",
+        null=True,
+        blank=True,
+        validators=[
+            FileExtensionValidator(
+                allowed_extensions=["pdf"]
+            )
+        ],
+    )
+
+    pdf_generated_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
 
     generated_at = models.DateTimeField(auto_now_add=True)
 

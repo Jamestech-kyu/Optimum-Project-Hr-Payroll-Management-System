@@ -170,6 +170,10 @@ class Employee(models.Model):
                 fields=["manager"],
                 name="emp_manager_idx",
             ),
+            models.Index(
+                fields=["-created_at"],
+                name="emp_created_idx",
+            ),
         ]
 
     @property

@@ -1,3 +1,7 @@
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 """
 Django settings for config project.
 
@@ -54,6 +58,7 @@ INSTALLED_APPS = [
     # Third-party Apps
     'rest_framework',
     'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
     'drf_spectacular',
     'django_filters',
 
@@ -69,7 +74,7 @@ INSTALLED_APPS = [
     'audit',
     'hr_operations',
     'contracts',
-    'benefits', 
+    'benefits',
     'performance',
     'training',
 ]
@@ -124,9 +129,13 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # -----------------------------------------------------------------------------
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": os.getenv("DB_NAME"),
+        "USER": os.getenv("DB_USER"),
+        "PASSWORD": os.getenv("DB_PASSWORD"),
+        "HOST": os.getenv("DB_HOST", "127.0.0.1"),
+        "PORT": os.getenv("DB_PORT", "5432"),
     }
 }
 
@@ -165,7 +174,11 @@ USE_TZ = True
 # Static & Media Files
 # -----------------------------------------------------------------------------
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+
+STATICFILES_DIRS = [
+    BASE_DIR / 'static',
+]
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
@@ -201,7 +214,7 @@ REST_FRAMEWORK = {
     'PAGE_SIZE': 20,
 
     'DEFAULT_FILTER_BACKENDS': (
-        'django_filters.rest_framework.DjangoFilterBackend',
+        'config.filters.SchemaCompatibleDjangoFilterBackend',
     ),
 }
 
@@ -230,3 +243,36 @@ SPECTACULAR_SETTINGS = {
     'DESCRIPTION': 'Backend API for HR & Payroll Management System',
     'VERSION': '1.0.0',
 }
+CELERY_BROKER_URL = "redis://127.0.0.1:6379/0"
+
+CELERY_RESULT_BACKEND = "redis://127.0.0.1:6379/1"
+
+CELERY_ACCEPT_CONTENT = ["json"]
+
+CELERY_TASK_SERIALIZER = "json"
+
+CELERY_RESULT_SERIALIZER = "json"
+
+CELERY_TIMEZONE = "Africa/Nairobi"
+
+CELERY_ENABLE_UTC = True
+
+CELERY_TASK_TRACK_STARTED = True
+
+CELERY_TASK_TIME_LIMIT = 60 * 60
+
+CELERY_TASK_SOFT_TIME_LIMIT = 55 * 60
+
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+
+CELERY_TASK_ACKS_LATE = True
+
+CELERY_TASK_REJECT_ON_WORKER_LOST = True
+
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+
+CELERY_RESULT_EXPIRES = 60 * 60 * 24
+COMPANY_NAME = "Optimum Computer Systems Ltd"
+COMPANY_ADDRESS = "Nairobi, Kenya"
+COMPANY_EMAIL = "info@optimumsystems.co.ke"
+COMPANY_PHONE = "+254 118859686"

@@ -3,7 +3,7 @@ from rest_framework import filters, permissions, status, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from drf_spectacular.utils import extend_schema
-from django_filters.rest_framework import DjangoFilterBackend
+from config.filters import SchemaCompatibleDjangoFilterBackend
 
 from accounts.permissions import RequiredPermission
 from audit.mixins import AuditViewSetMixin
@@ -84,7 +84,7 @@ class PerformanceReviewViewSet(
     serializer_class = PerformanceReviewSerializer
     permission_classes = [permissions.IsAuthenticated]
     filter_backends = [
-        DjangoFilterBackend,
+        SchemaCompatibleDjangoFilterBackend,
         filters.SearchFilter,
         filters.OrderingFilter,
     ]

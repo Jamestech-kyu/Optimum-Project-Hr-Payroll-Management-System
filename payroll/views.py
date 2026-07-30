@@ -1,9 +1,11 @@
 from rest_framework import filters, permissions, status, viewsets
+from rest_framework.decorators import action
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema
 from django.http import FileResponse
-from django_filters.rest_framework import DjangoFilterBackend
+from django.db import transaction
+from config.filters import SchemaCompatibleDjangoFilterBackend
 
 from .pdf_utils import generate_payslip_pdf
 from accounts.object_permissions import (
@@ -49,6 +51,7 @@ from .services import (
     finalize_payroll_run,
     cancel_payroll_run,
 )
+from .tasks import process_payroll
 
 class PayrollRunViewSet(
     AuditViewSetMixin,
@@ -59,6 +62,94 @@ class PayrollRunViewSet(
     queryset = PayrollRun.objects.all()
     serializer_class = PayrollRunSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="process",
+    )
+    def process_async(self, request, pk=None):
+        payroll_run = self.get_object()
+
+        allowed_statuses = {
+            "DRAFT",
+            "FAILED",
+            "COMPLETED_WITH_ERRORS",
+        }
+
+        if payroll_run.status not in allowed_statuses:
+            return Response(
+                {
+                    "detail": (
+                        f"Payroll cannot be processed while status is "
+                        f"{payroll_run.status}."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if payroll_run.bank_payments.filter(
+            status="PAID"
+        ).exists():
+            return Response(
+                {
+                    "detail": (
+                        "Payroll cannot be regenerated because one or "
+                        "more bank payments are already marked as paid."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        payroll_run.status = "QUEUED"
+        payroll_run.error_message = ""
+        payroll_run.failure_details = []
+        payroll_run.processed_employees = 0
+        payroll_run.failed_employees = 0
+        payroll_run.progress_percentage = 0
+
+        payroll_run.save(
+            update_fields=[
+                "status",
+                "error_message",
+                "failure_details",
+                "processed_employees",
+                "failed_employees",
+                "progress_percentage",
+            ]
+        )
+
+        def queue_task():
+            task = process_payroll.delay(payroll_run.id)
+
+            PayrollRun.objects.filter(
+                pk=payroll_run.pk
+            ).update(
+                celery_task_id=task.id
+            )
+
+        try:
+            transaction.on_commit(queue_task)
+        except Exception as exc:
+            return Response(
+                {
+                    "detail": (
+                        "Payroll run was queued in the database, but "
+                        "background processing could not be started."
+                    ),
+                    "error": str(exc),
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        return Response(
+            {
+                "message": "Payroll processing has been queued.",
+                "payroll_run_id": payroll_run.id,
+                "status": "QUEUED",
+            },
+            status=status.HTTP_202_ACCEPTED,
+        )
 
 
 class PayslipViewSet(
@@ -74,7 +165,7 @@ class PayslipViewSet(
     serializer_class = PayslipSerializer
     permission_classes = [permissions.IsAuthenticated]
     filter_backends = [
-        DjangoFilterBackend,
+        SchemaCompatibleDjangoFilterBackend,
         filters.SearchFilter,
         filters.OrderingFilter,
     ]
@@ -233,12 +324,81 @@ class GeneratePayrollView(APIView):
             request=request,
         )
 
+        if payroll_run.status not in {
+            "DRAFT",
+            "FAILED",
+            "COMPLETED_WITH_ERRORS",
+        }:
+            return Response(
+                {
+                    "message": (
+                        f"Payroll cannot be processed while status is "
+                        f"{payroll_run.status}."
+                    ),
+                    "payroll": PayrollRunSerializer(payroll_run).data,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if payroll_run.bank_payments.filter(status="PAID").exists():
+            return Response(
+                {
+                    "message": (
+                        "Payroll cannot be regenerated because one or "
+                        "more bank payments are already marked as paid."
+                    ),
+                    "payroll": PayrollRunSerializer(payroll_run).data,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        payroll_run.status = "QUEUED"
+        payroll_run.error_message = ""
+        payroll_run.failure_details = []
+        payroll_run.processed_employees = 0
+        payroll_run.failed_employees = 0
+        payroll_run.progress_percentage = 0
+        payroll_run.save(
+            update_fields=[
+                "status",
+                "error_message",
+                "failure_details",
+                "processed_employees",
+                "failed_employees",
+                "progress_percentage",
+            ]
+        )
+
+        try:
+            def queue_task():
+                task = process_payroll.delay(payroll_run.id)
+                PayrollRun.objects.filter(
+                    pk=payroll_run.pk
+                ).update(
+                    celery_task_id=task.id
+                )
+                payroll_run.celery_task_id = task.id
+
+            transaction.on_commit(queue_task)
+        except Exception as exc:
+            return Response(
+                {
+                    "message": (
+                        "Payroll run was created, but background "
+                        "processing could not be queued."
+                    ),
+                    "error": str(exc),
+                    "payroll": PayrollRunSerializer(payroll_run).data,
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
         return Response(
             {
-                "message": "Payroll generated successfully.",
+                "message": "Payroll generation queued successfully.",
                 "payroll": PayrollRunSerializer(payroll_run).data,
             },
-            status=status.HTTP_201_CREATED,
+            status=status.HTTP_202_ACCEPTED,
         )
 @extend_schema(
     request=PayrollActionSerializer,
