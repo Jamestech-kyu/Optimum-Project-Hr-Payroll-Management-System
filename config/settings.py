@@ -12,6 +12,14 @@ from pathlib import Path
 from datetime import timedelta
 from decouple import config
 
+
+def csv_list(value):
+    return [
+        item.strip()
+        for item in value.split(',')
+        if item.strip()
+    ]
+
 # -----------------------------------------------------------------------------
 # Base Directory
 # -----------------------------------------------------------------------------
@@ -22,7 +30,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Security
 # -----------------------------------------------------------------------------
 
-SECRET_KEY = config('SECRET_KEY', default='change-me-in-development')
+SECRET_KEY = config(
+    'SECRET_KEY',
+    default='dev-only-change-this-secret-key-before-production-2026',
+)
 
 DEBUG = config('DEBUG', default='true').lower() not in {
     'false',
@@ -33,14 +44,12 @@ DEBUG = config('DEBUG', default='true').lower() not in {
     'release',
 }
 
-ALLOWED_HOSTS = [
-    host.strip()
-    for host in config(
+ALLOWED_HOSTS = csv_list(
+    config(
         'ALLOWED_HOSTS',
         default='localhost,127.0.0.1,testserver',
-    ).split(',')
-    if host.strip()
-]
+    )
+)
 
 # -----------------------------------------------------------------------------
 # Installed Apps
@@ -61,6 +70,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',
     'drf_spectacular',
     'django_filters',
+    'corsheaders',
 
     # Local Apps
     'accounts',
@@ -85,6 +95,8 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -164,7 +176,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = config('TIME_ZONE', default='Africa/Nairobi')
 
 USE_I18N = True
 
@@ -180,8 +192,83 @@ STATICFILES_DIRS = [
     BASE_DIR / 'static',
 ]
 
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+STORAGES = {
+    'default': {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+    },
+    'staticfiles': {
+        'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
+    },
+}
+
+# -----------------------------------------------------------------------------
+# Browser Security / CORS
+# -----------------------------------------------------------------------------
+
+SECURE_PROXY_SSL_HEADER = (
+    'HTTP_X_FORWARDED_PROTO',
+    'https',
+)
+
+SECURE_SSL_REDIRECT = config(
+    'SECURE_SSL_REDIRECT',
+    default=not DEBUG,
+    cast=bool,
+)
+
+SESSION_COOKIE_SECURE = config(
+    'SESSION_COOKIE_SECURE',
+    default=not DEBUG,
+    cast=bool,
+)
+
+CSRF_COOKIE_SECURE = config(
+    'CSRF_COOKIE_SECURE',
+    default=not DEBUG,
+    cast=bool,
+)
+
+SECURE_HSTS_SECONDS = config(
+    'SECURE_HSTS_SECONDS',
+    default=0 if DEBUG else 31536000,
+    cast=int,
+)
+
+SECURE_HSTS_INCLUDE_SUBDOMAINS = config(
+    'SECURE_HSTS_INCLUDE_SUBDOMAINS',
+    default=not DEBUG,
+    cast=bool,
+)
+
+SECURE_HSTS_PRELOAD = config(
+    'SECURE_HSTS_PRELOAD',
+    default=False,
+    cast=bool,
+)
+
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = 'DENY'
+
+CORS_ALLOWED_ORIGINS = csv_list(
+    config(
+        'CORS_ALLOWED_ORIGINS',
+        default='http://localhost:5173,http://127.0.0.1:5173',
+    )
+)
+
+CORS_ALLOW_CREDENTIALS = True
+
+CSRF_TRUSTED_ORIGINS = csv_list(
+    config(
+        'CSRF_TRUSTED_ORIGINS',
+        default='http://localhost:5173,http://127.0.0.1:5173',
+    )
+)
 
 # -----------------------------------------------------------------------------
 # Default Primary Key
@@ -243,9 +330,15 @@ SPECTACULAR_SETTINGS = {
     'DESCRIPTION': 'Backend API for HR & Payroll Management System',
     'VERSION': '1.0.0',
 }
-CELERY_BROKER_URL = "redis://127.0.0.1:6379/0"
+CELERY_BROKER_URL = config(
+    'CELERY_BROKER_URL',
+    default='redis://127.0.0.1:6379/0',
+)
 
-CELERY_RESULT_BACKEND = "redis://127.0.0.1:6379/1"
+CELERY_RESULT_BACKEND = config(
+    'CELERY_RESULT_BACKEND',
+    default='redis://127.0.0.1:6379/1',
+)
 
 CELERY_ACCEPT_CONTENT = ["json"]
 
@@ -272,7 +365,19 @@ CELERY_TASK_REJECT_ON_WORKER_LOST = True
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1
 
 CELERY_RESULT_EXPIRES = 60 * 60 * 24
-COMPANY_NAME = "Optimum Computer Systems Ltd"
-COMPANY_ADDRESS = "Nairobi, Kenya"
-COMPANY_EMAIL = "info@optimumsystems.co.ke"
-COMPANY_PHONE = "+254 118859686"
+COMPANY_NAME = config(
+    'COMPANY_NAME',
+    default='Optimum Computer Systems Ltd',
+)
+COMPANY_ADDRESS = config(
+    'COMPANY_ADDRESS',
+    default='Nairobi, Kenya',
+)
+COMPANY_EMAIL = config(
+    'COMPANY_EMAIL',
+    default='info@optimumsystems.co.ke',
+)
+COMPANY_PHONE = config(
+    'COMPANY_PHONE',
+    default='+254 118859686',
+)
