@@ -55,10 +55,20 @@ class LoginView(APIView):
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
-        username = request.data.get("username")
+        username = request.data.get("username") or request.data.get("email")
         password = request.data.get("password")
 
-        user = authenticate(username=username, password=password)
+        login_username = username
+
+        if username and "@" in username:
+            user_match = CustomUser.objects.filter(
+                email__iexact=username,
+            ).first()
+
+            if user_match:
+                login_username = user_match.username
+
+        user = authenticate(username=login_username, password=password)
 
         if user is None:
             return Response(
