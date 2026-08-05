@@ -1,3 +1,4 @@
+from django.db.models import Sum
 from rest_framework import serializers
 
 from .models import (
@@ -17,9 +18,73 @@ from .models import (
 
 
 class PayrollRunSerializer(serializers.ModelSerializer):
+    processed_by_name = serializers.CharField(
+        source="processed_by.full_name",
+        read_only=True,
+    )
+    approved_by_name = serializers.CharField(
+        source="approved_by.full_name",
+        read_only=True,
+    )
+    pay_period = serializers.SerializerMethodField()
+    employee_count = serializers.SerializerMethodField()
+    total_amount = serializers.SerializerMethodField()
+    total_gross_pay = serializers.SerializerMethodField()
+    total_deductions = serializers.SerializerMethodField()
+    total_tax = serializers.SerializerMethodField()
+    bank_payment_count = serializers.SerializerMethodField()
+    bank_payment_status = serializers.SerializerMethodField()
+
     class Meta:
         model = PayrollRun
         fields = "__all__"
+
+    def get_pay_period(self, obj):
+        if obj.month and obj.year:
+            return f"{obj.month}/{obj.year}"
+        return None
+
+    def get_employee_count(self, obj):
+        return obj.payslips.count()
+
+    def get_total_amount(self, obj):
+        total = obj.payslips.aggregate(total=Sum("net_pay"))[
+            "total"
+        ]
+        return total or 0
+
+    def _payslip_totals(self, obj):
+        return obj.payslips.aggregate(
+            gross=Sum("gross_pay"),
+            deductions=Sum("total_deductions"),
+            tax=Sum("tax_amount"),
+        )
+
+    def get_total_gross_pay(self, obj):
+        return self._payslip_totals(obj)["gross"] or 0
+
+    def get_total_deductions(self, obj):
+        return self._payslip_totals(obj)["deductions"] or 0
+
+    def get_total_tax(self, obj):
+        return self._payslip_totals(obj)["tax"] or 0
+
+    def get_bank_payment_count(self, obj):
+        return obj.bank_payments.count()
+
+    def get_bank_payment_status(self, obj):
+        statuses = list(
+            obj.bank_payments.order_by().values_list("status", flat=True).distinct()
+        )
+        if not statuses:
+            return "NOT_GENERATED"
+        if "FAILED" in statuses:
+            return "FAILED"
+        if all(status == "PAID" for status in statuses):
+            return "PAID"
+        if "PROCESSING" in statuses:
+            return "PROCESSING"
+        return "PENDING"
 
 
 class PayrollAllowanceSerializer(serializers.ModelSerializer):
@@ -40,10 +105,26 @@ class PayslipSerializer(serializers.ModelSerializer):
         read_only=True,
     )
 
+    employee_email = serializers.CharField(
+        source="employee.work_email",
+        read_only=True,
+    )
+
+    department_name = serializers.CharField(
+        source="employee.department.name",
+        read_only=True,
+    )
+
+    designation_name = serializers.CharField(
+        source="employee.designation.name",
+        read_only=True,
+    )
+
     employee_number = serializers.CharField(
         source="employee.employee_number",
         read_only=True,
     )
+    reviewed_by_name = serializers.CharField(source="reviewed_by.full_name", read_only=True)
 
     payroll_month = serializers.IntegerField(
         source="payroll_run.month",
@@ -80,13 +161,21 @@ class PayslipSerializer(serializers.ModelSerializer):
             "payroll_status",
             "employee",
             "employee_name",
+            "employee_email",
             "employee_number",
+            "department_name",
+            "designation_name",
             "basic_salary",
             "total_allowances",
             "gross_pay",
             "total_deductions",
             "tax_amount",
             "net_pay",
+            "approval_status",
+            "approval_comment",
+            "reviewed_by",
+            "reviewed_by_name",
+            "reviewed_at",
             "allowances",
             "deductions",
             "generated_at",
@@ -448,6 +537,12 @@ class GeneratePayrollSerializer(serializers.Serializer):
         max_value=2100,
     )
 
+    employee_ids = serializers.ListField(
+        child=serializers.IntegerField(min_value=1),
+        required=False,
+        allow_empty=False,
+    )
+
 
 class PayrollActionSerializer(serializers.Serializer):
     comment = serializers.CharField(
@@ -463,3 +558,22 @@ class PayrollCancelSerializer(serializers.Serializer):
         allow_blank=False,
         max_length=1000,
     )
+
+
+class PayslipReviewSerializer(serializers.Serializer):
+    payslip_ids = serializers.ListField(child=serializers.IntegerField(min_value=1), allow_empty=False)
+    action = serializers.ChoiceField(choices=["APPROVE", "REJECT"])
+    comment = serializers.CharField(required=False, allow_blank=True, max_length=1000)
+
+    def validate(self, data):
+        if data["action"] == "REJECT" and not data.get("comment", "").strip():
+            raise serializers.ValidationError({"comment": "A reason is required when rejecting payroll items."})
+        return data
+
+
+class BankReconciliationSerializer(serializers.Serializer):
+    payment_ids = serializers.ListField(
+        child=serializers.IntegerField(min_value=1),
+        allow_empty=False,
+    )
+    status = serializers.ChoiceField(choices=["PAID", "FAILED"])

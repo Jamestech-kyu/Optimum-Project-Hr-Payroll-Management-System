@@ -1,4 +1,6 @@
 from decimal import Decimal
+from calendar import monthrange
+from datetime import date
 
 from django.db import transaction
 from django.utils import timezone
@@ -47,7 +49,18 @@ def calculate_employee_extra_components(employee):
 
     for item in components:
         component = item.component
-        amount = item.amount or component.default_amount or Decimal("0.00")
+        # A percentage component is a percentage of the employee's basic
+        # salary.  An employee-specific amount deliberately takes precedence;
+        # it lets payroll override the configured default for one employee.
+        if component.calculation_type == "PERCENTAGE":
+            rate = item.amount or component.percentage_rate or Decimal("0.00")
+            amount = calculate_employee_basic_salary(employee) * (
+                rate / Decimal("100.00")
+            )
+        else:
+            amount = item.amount or component.default_amount or Decimal("0.00")
+
+        amount = amount.quantize(Decimal("0.01"))
 
         if component.component_type == "EARNING":
             earnings[component.name] = amount
@@ -77,12 +90,14 @@ def calculate_gross_pay(employee):
     }
 
 
-def calculate_paye(taxable_income):
+def calculate_paye(taxable_income, effective_date=None):
     paye = Decimal("0.00")
 
+    effective_date = effective_date or timezone.localdate()
     tax_bands = TaxBand.objects.filter(
         name="PAYE",
         is_active=True,
+        effective_from__lte=effective_date,
     ).order_by("min_income")
 
     for band in tax_bands:
@@ -102,10 +117,14 @@ def calculate_paye(taxable_income):
     return paye.quantize(Decimal("0.01"))
 
 
-def calculate_statutory_deductions(gross_pay):
+def calculate_statutory_deductions(gross_pay, effective_date=None):
     deductions = {}
 
-    rates = StatutoryRate.objects.filter(is_active=True)
+    effective_date = effective_date or timezone.localdate()
+    rates = StatutoryRate.objects.filter(
+        is_active=True,
+        effective_from__lte=effective_date,
+    )
 
     for rate in rates:
         if rate.is_percentage:
@@ -118,15 +137,18 @@ def calculate_statutory_deductions(gross_pay):
     return deductions
 
 
-def calculate_employee_payroll(employee):
+def calculate_employee_payroll(employee, effective_date=None):
     gross_data = calculate_gross_pay(employee)
 
     gross_pay = gross_data["gross_pay"]
     taxable_income = gross_pay
 
-    paye = calculate_paye(taxable_income)
+    paye = calculate_paye(taxable_income, effective_date=effective_date)
 
-    statutory_deductions = calculate_statutory_deductions(gross_pay)
+    statutory_deductions = calculate_statutory_deductions(
+        gross_pay,
+        effective_date=effective_date,
+    )
     extra_deductions = gross_data["extra_deductions"]
 
     total_deductions = (
@@ -151,7 +173,15 @@ def calculate_employee_payroll(employee):
 
 
 def generate_payslip(payroll_run, employee):
-    payroll_data = calculate_employee_payroll(employee)
+    period_end = date(
+        payroll_run.year,
+        payroll_run.month,
+        monthrange(payroll_run.year, payroll_run.month)[1],
+    )
+    payroll_data = calculate_employee_payroll(
+        employee,
+        effective_date=period_end,
+    )
 
     payslip, created = Payslip.objects.update_or_create(
         payroll_run=payroll_run,
@@ -210,13 +240,27 @@ def generate_payslip(payroll_run, employee):
             amount=amount,
         )
 
+    primary_account = employee.bank_accounts.filter(is_primary=True).first()
+    if primary_account is None:
+        primary_account = employee.bank_accounts.first()
+
     BankPayment.objects.update_or_create(
         payroll_run=payroll_run,
         employee=employee,
         defaults={
-            "bank_name": employee.bank_name,
-            "account_number": employee.bank_account_number,
-            "account_name": employee.bank_account_name,
+            "bank_name": (
+                primary_account.bank_name if primary_account else employee.bank_name
+            ),
+            "account_number": (
+                primary_account.account_number
+                if primary_account
+                else employee.bank_account_number
+            ),
+            "account_name": (
+                primary_account.account_name
+                if primary_account
+                else employee.bank_account_name
+            ),
             "amount": payroll_data["net_pay"],
             "status": "PENDING",
         },
@@ -225,7 +269,7 @@ def generate_payslip(payroll_run, employee):
     return payslip
 
 
-def generate_payroll_run(month, year, processed_by, request=None):
+def generate_payroll_run(month, year, processed_by, request=None, employee_ids=None):
     payroll_run, created = PayrollRun.objects.get_or_create(
         month=month,
         year=year,
@@ -236,12 +280,27 @@ def generate_payroll_run(month, year, processed_by, request=None):
         },
     )
 
+    if payroll_run.status != "DRAFT":
+        raise ValueError(
+            "Only a draft payroll can be regenerated. Create a new run or "
+            "cancel the existing run before making changes."
+        )
+
     employees = Employee.objects.filter(
         employment_status__in=["ACTIVE", "PROBATION", "ONBOARDING"]
     )
+    if employee_ids:
+        employees = employees.filter(id__in=employee_ids)
+
+    if not employees.exists():
+        raise ValueError("No eligible employees were found for this payroll run.")
 
     for employee in employees:
         generate_payslip(payroll_run, employee)
+
+    payroll_run.processed_by = processed_by
+    payroll_run.processed_at = timezone.now()
+    payroll_run.save(update_fields=["processed_by", "processed_at"])
 
     log_activity(
         user=processed_by,
@@ -304,6 +363,8 @@ def approve_payroll_run(
         raise ValueError(
             "Only payroll pending approval can be approved."
         )
+    if payroll_run.payslips.exclude(approval_status="APPROVED").exists():
+        raise ValueError("All payroll items must be reviewed and approved before approving the payroll run.")
 
     payroll_run.status = "APPROVED"
     payroll_run.approved_by = approved_by
@@ -338,6 +399,28 @@ def approve_payroll_run(
 
 
 @transaction.atomic
+def review_payslips(payroll_run, payslip_ids, action, reviewed_by, comment="", request=None):
+    if payroll_run.status != "PENDING_APPROVAL":
+        raise ValueError("Only payroll pending approval can have its items reviewed.")
+
+    payslips = payroll_run.payslips.filter(id__in=set(payslip_ids))
+    if payslips.count() != len(set(payslip_ids)):
+        raise ValueError("One or more payroll items do not belong to this payroll run.")
+
+    review_status = "APPROVED" if action == "APPROVE" else "REJECTED"
+    payslips.update(approval_status=review_status, approval_comment=comment, reviewed_by=reviewed_by, reviewed_at=timezone.now())
+    log_activity(
+        user=reviewed_by,
+        action="APPROVE" if action == "APPROVE" else "REJECT",
+        module="Payroll",
+        description=f"{review_status.title()} {payslips.count()} payroll item(s) for {payroll_run.month}/{payroll_run.year}." + (f" Comment: {comment}" if comment else ""),
+        object_id=payroll_run.id,
+        ip_address=get_client_ip(request) if request else None,
+    )
+    return payslips
+
+
+@transaction.atomic
 def finalize_payroll_run(
     payroll_run,
     finalized_by,
@@ -352,10 +435,23 @@ def finalize_payroll_run(
     # Synchronize bank payment records with the latest employee bank details
     for payment in payroll_run.bank_payments.select_related("employee"):
         employee = payment.employee
+        primary_account = employee.bank_accounts.filter(is_primary=True).first()
+        if primary_account is None:
+            primary_account = employee.bank_accounts.first()
 
-        payment.bank_name = employee.bank_name
-        payment.account_number = employee.bank_account_number
-        payment.account_name = employee.bank_account_name
+        payment.bank_name = (
+            primary_account.bank_name if primary_account else employee.bank_name
+        )
+        payment.account_number = (
+            primary_account.account_number
+            if primary_account
+            else employee.bank_account_number
+        )
+        payment.account_name = (
+            primary_account.account_name
+            if primary_account
+            else employee.bank_account_name
+        )
 
         payment.save(
             update_fields=[

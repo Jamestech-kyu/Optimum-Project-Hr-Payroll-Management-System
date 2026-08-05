@@ -1,5 +1,8 @@
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
+from django.utils.dateparse import parse_date
+
+from accounts.permissions import RequiredPermission
 
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
@@ -11,6 +14,14 @@ from .models import (
     ReportExecution,
     ReportTemplate,
     SavedReport,
+    ScheduledReport,
+)
+from .analytics_services import (
+    benefits_analytics,
+    compliance_analytics,
+    payroll_analytics,
+    performance_analytics,
+    workforce_analytics,
 )
 from .dashboard_services import (
     attendance_statistics,
@@ -27,6 +38,7 @@ from .serializers import (
     ReportPreviewSerializer,
     ReportTemplateSerializer,
     SavedReportSerializer,
+    ScheduledReportSerializer,
 )
 from .services import (
     create_report_execution,
@@ -74,6 +86,19 @@ class ReportTemplateViewSet(viewsets.ModelViewSet):
         serializer.save(
             created_by=self.request.user
         )
+
+
+class ScheduledReportViewSet(viewsets.ModelViewSet):
+    """Recurring report schedules shown on the analytics page."""
+
+    serializer_class = ScheduledReportSerializer
+    permission_classes = [RequiredPermission("reports.view")]
+
+    def get_queryset(self):
+        return ScheduledReport.objects.all().order_by("name")
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
 
 
 class SavedReportViewSet(viewsets.ModelViewSet):
@@ -347,7 +372,9 @@ class ReportSummaryView(APIView):
 
 
 class DashboardOverviewView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    # Company-wide totals, so gated on reports.view rather than mere
+    # authentication. Employees use dashboard/my-dashboard/ instead.
+    permission_classes = [RequiredPermission("reports.view")]
 
     def get(self, request):
         return Response(
@@ -356,18 +383,50 @@ class DashboardOverviewView(APIView):
         )
 
 
-class EmployeeDashboardView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+class AnalyticsDashboardView(APIView):
+    """Base view for the Reports & Analytics cards in the web client.
+
+    Subclasses supply ``analytics``, a callable taking the parsed filters. The
+    client sends ``branch``/``department`` display names plus a date range; both
+    the nested ``dateRange[start]`` form used by the analytics page and the flat
+    ``start_date`` form are accepted.
+    """
+
+    permission_classes = [RequiredPermission("reports.view")]
+    analytics = None
+
+    def _filters(self, request):
+        params = request.query_params
+
+        def date_param(*names):
+            for name in names:
+                value = params.get(name)
+                if value:
+                    parsed = parse_date(value)
+                    if parsed:
+                        return parsed
+            return None
+
+        return {
+            "branch": params.get("branch") or None,
+            "department": params.get("department") or None,
+            "start": date_param("start_date", "dateRange[start]", "start"),
+            "end": date_param("end_date", "dateRange[end]", "end"),
+        }
 
     def get(self, request):
         return Response(
-            employee_statistics(),
+            type(self).analytics(**self._filters(request)),
             status=status.HTTP_200_OK,
         )
 
 
+class EmployeeDashboardView(AnalyticsDashboardView):
+    analytics = staticmethod(workforce_analytics)
+
+
 class AttendanceDashboardView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [RequiredPermission("reports.view")]
 
     def get(self, request):
         return Response(
@@ -377,7 +436,7 @@ class AttendanceDashboardView(APIView):
 
 
 class LeaveDashboardView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [RequiredPermission("reports.view")]
 
     def get(self, request):
         return Response(
@@ -386,28 +445,24 @@ class LeaveDashboardView(APIView):
         )
 
 
-class PayrollDashboardView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get(self, request):
-        return Response(
-            payroll_statistics(),
-            status=status.HTTP_200_OK,
-        )
+class PayrollDashboardView(AnalyticsDashboardView):
+    analytics = staticmethod(payroll_analytics)
 
 
-class PerformanceDashboardView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+class ComplianceDashboardView(AnalyticsDashboardView):
+    analytics = staticmethod(compliance_analytics)
 
-    def get(self, request):
-        return Response(
-            performance_statistics(),
-            status=status.HTTP_200_OK,
-        )
+
+class BenefitsDashboardView(AnalyticsDashboardView):
+    analytics = staticmethod(benefits_analytics)
+
+
+class PerformanceDashboardView(AnalyticsDashboardView):
+    analytics = staticmethod(performance_analytics)
 
 
 class TrainingDashboardView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [RequiredPermission("reports.view")]
 
     def get(self, request):
         return Response(

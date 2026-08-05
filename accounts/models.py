@@ -7,8 +7,11 @@ class Role(models.Model):
     ROLE_CHOICES = [
         ('SUPER_ADMIN', 'Super Admin'),
         ('ADMIN', 'Admin'),
+        ('EXECUTIVE', 'Executive'),
         ('HR', 'HR'),
+        ('DEPARTMENT_HEAD', 'Department Head'),
         ('MANAGER', 'Manager'),
+        ('FINANCE', 'Finance'),
         ('PAYROLL_OFFICER', 'Payroll Officer'),
         ('EMPLOYEE', 'Employee'),
     ]

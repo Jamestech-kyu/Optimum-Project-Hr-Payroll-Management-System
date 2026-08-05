@@ -222,6 +222,12 @@ class EmployeePayComponent(models.Model):
 
 
 class Payslip(models.Model):
+    APPROVAL_STATUS_CHOICES = [
+        ("PENDING", "Pending Review"),
+        ("APPROVED", "Approved"),
+        ("REJECTED", "Rejected"),
+    ]
+
     payroll_run = models.ForeignKey(
         PayrollRun,
         on_delete=models.CASCADE,
@@ -241,6 +247,10 @@ class Payslip(models.Model):
     total_deductions = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     tax_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     net_pay = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    approval_status = models.CharField(max_length=20, choices=APPROVAL_STATUS_CHOICES, default="PENDING")
+    approval_comment = models.TextField(blank=True)
+    reviewed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="payslips_reviewed")
+    reviewed_at = models.DateTimeField(null=True, blank=True)
 
     generated_at = models.DateTimeField(auto_now_add=True)
 

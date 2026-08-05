@@ -11,6 +11,50 @@ from .models import (
 
 
 @transaction.atomic
+def approve_contract(contract, approved_by, request=None):
+    """Move a drafted contract into force.
+
+    Approval is the step the client's contract management page performs before a
+    contract takes effect, so it records the approver and activates the record.
+    """
+    if contract.status != "DRAFT":
+        raise ValueError(
+            "Only draft contracts can be approved."
+        )
+
+    contract.status = "ACTIVE"
+    contract.approved_by = approved_by
+    contract.approved_at = timezone.now()
+
+    contract.save(
+        update_fields=[
+            "status",
+            "approved_by",
+            "approved_at",
+            "updated_at",
+        ]
+    )
+
+    log_activity(
+        user=approved_by,
+        action="UPDATE",
+        module="Contracts",
+        description=(
+            f"Approved contract {contract.contract_number} "
+            f"for employee {contract.employee.employee_number}."
+        ),
+        object_id=contract.id,
+        ip_address=(
+            get_client_ip(request)
+            if request
+            else None
+        ),
+    )
+
+    return contract
+
+
+@transaction.atomic
 def renew_contract(
     contract,
     renewed_by,

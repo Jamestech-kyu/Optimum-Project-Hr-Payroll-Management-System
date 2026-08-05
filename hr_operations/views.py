@@ -5,22 +5,39 @@ from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django.db.models import Count, Sum, Q
+from django_filters.rest_framework import DjangoFilterBackend
+
+from accounts.permissions import RequiredPermission
 
 from .models import (
+    BranchTask,
+    EmployeeNote,
+    PerformanceCycle,
     PerformanceReview,
     PerformanceGoal,
     DisciplinaryCase,
     Announcement,
     Training,
     TrainingEnrollment,
+    OffboardingCase,
+    OffboardingChecklistItem,
+    OffboardingExitInterview,
+    OffboardingFinalSettlement,
 )
 from .serializers import (
+    BranchTaskSerializer,
+    EmployeeNoteSerializer,
+    PerformanceCycleSerializer,
     PerformanceReviewSerializer,
     PerformanceGoalSerializer,
     DisciplinaryCaseSerializer,
     AnnouncementSerializer,
     TrainingSerializer,
     TrainingEnrollmentSerializer,
+    OffboardingCaseSerializer,
+    OffboardingChecklistItemSerializer,
+    OffboardingExitInterviewSerializer,
+    OffboardingFinalSettlementSerializer,
 )
 
 # Import Employee model for real data
@@ -32,18 +49,67 @@ except ImportError:
     Department = None
 
 
-class DjangoFilterBackend:
-    def filter_queryset(self, request, queryset, view):
-        for field in getattr(view, "filterset_fields", []):
-            value = request.query_params.get(field)
-            if value not in [None, ""]:
-                queryset = queryset.filter(**{field: value})
-        return queryset
-
-
 # =========================================================
 # PERFORMANCE API
 # =========================================================
+
+class BranchTaskViewSet(viewsets.ModelViewSet):
+    """Branch dashboard task board."""
+
+    queryset = BranchTask.objects.select_related("assigned_to", "created_by")
+    serializer_class = BranchTaskSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = ["status", "priority", "assigned_to", "branch", "department"]
+    search_fields = ["title", "description"]
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
+    def perform_update(self, serializer):
+        task = serializer.save()
+        # Stamp completion the first time a task reaches Done.
+        if task.status == "DONE" and not task.completed_at:
+            task.completed_at = timezone.now()
+            task.save(update_fields=["completed_at"])
+        elif task.status != "DONE" and task.completed_at:
+            task.completed_at = None
+            task.save(update_fields=["completed_at"])
+
+
+class EmployeeNoteViewSet(viewsets.ModelViewSet):
+    """Notes recorded against an employee, used by the lifecycle screens."""
+
+    queryset = EmployeeNote.objects.select_related("employee", "author")
+    serializer_class = EmployeeNoteSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ["employee", "category"]
+
+    def perform_create(self, serializer):
+        serializer.save(author=self.request.user)
+
+
+class PerformanceCycleViewSet(viewsets.ModelViewSet):
+    """Appraisal cycles for the client's Performance Oversight page.
+
+    The model existed but was never exposed, so the page was reading
+    /performance/cycles/ instead - a different model whose fields do not line up
+    (``title`` rather than ``name``, no rating scale or scope).
+    """
+
+    queryset = PerformanceCycle.objects.prefetch_related("employees").order_by(
+        "-start_date", "-created_at"
+    )
+    serializer_class = PerformanceCycleSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = ["status", "scope"]
+    search_fields = ["name", "description", "review_period"]
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
 
 class PerformanceReviewViewSet(viewsets.ModelViewSet):
     queryset = PerformanceReview.objects.all()
@@ -64,11 +130,13 @@ class PerformanceReviewViewSet(viewsets.ModelViewSet):
 
 
 class PerformanceGoalViewSet(viewsets.ModelViewSet):
-    queryset = PerformanceGoal.objects.all()
+    queryset = PerformanceGoal.objects.select_related(
+        "employee", "review", "review__employee", "cycle"
+    ).order_by("target_date", "id")
     serializer_class = PerformanceGoalSerializer
     permission_classes = [permissions.IsAuthenticated]
     filter_backends = [DjangoFilterBackend]
-    filterset_fields = ["review", "status"]
+    filterset_fields = ["review", "employee", "cycle", "status"]
 
 
 # =========================================================
@@ -159,6 +227,46 @@ class TrainingEnrollmentViewSet(viewsets.ModelViewSet):
     filterset_fields = ["training", "employee", "status"]
 
 
+class OffboardingCaseViewSet(viewsets.ModelViewSet):
+    queryset = OffboardingCase.objects.select_related("employee", "initiated_by")
+    serializer_class = OffboardingCaseSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = ["status", "employee", "exit_type"]
+    search_fields = ["employee__first_name", "employee__last_name", "employee__employee_number", "reason"]
+
+    def perform_create(self, serializer):
+        serializer.save(initiated_by=self.request.user)
+
+
+class OffboardingChecklistItemViewSet(viewsets.ModelViewSet):
+    # Explicit ordering: paginated responses are otherwise non-deterministic and
+    # rows can repeat or disappear between pages.
+    queryset = OffboardingChecklistItem.objects.select_related(
+        "case", "owner"
+    ).order_by("case_id", "order", "id")
+    serializer_class = OffboardingChecklistItemSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ["case", "status"]
+
+
+class OffboardingExitInterviewViewSet(viewsets.ModelViewSet):
+    queryset = OffboardingExitInterview.objects.select_related("case").order_by("id")
+    serializer_class = OffboardingExitInterviewSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ["case"]
+
+
+class OffboardingFinalSettlementViewSet(viewsets.ModelViewSet):
+    queryset = OffboardingFinalSettlement.objects.select_related("case").order_by("id")
+    serializer_class = OffboardingFinalSettlementSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ["case", "status"]
+
+
 # =========================================================
 # DASHBOARD API – REAL DATA ONLY
 # =========================================================
@@ -187,7 +295,7 @@ def get_departments():
     return []
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([RequiredPermission("reports.view")])
 def executive_dashboard(request):
     total_employees = get_employee_count()
 
@@ -257,7 +365,7 @@ def executive_dashboard(request):
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([RequiredPermission("reports.view")])
 def hr_dashboard(request):
     branch_name = request.query_params.get('branch', None)
     qs = Employee.objects.all()
@@ -315,7 +423,7 @@ def hr_dashboard(request):
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([RequiredPermission("reports.view")])
 def branch_dashboard(request, branch_id):
     # Try to filter by branch ID (if branch is a ForeignKey) or by name
     branch_field = get_branch_field_name()

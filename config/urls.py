@@ -25,6 +25,8 @@ urlpatterns = [
     path("api/benefits/", include("benefits.urls")),
     path("api/notifications/", include("notifications.urls")),
     path("api/reporting/",include("reports.urls"),),
+    # Backwards-compatible alias used by the web client.
+    path("api/reports/", include("reports.urls")),
     path("api/audit/",include("audit.urls"),),
     path("api/performance/", include("performance.urls")),
     path("api/training/", include("training.urls")),

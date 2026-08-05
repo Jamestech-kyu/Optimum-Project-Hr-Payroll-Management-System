@@ -17,6 +17,22 @@ from .models import (
 class EmployeeSerializer(serializers.ModelSerializer):
     full_name = serializers.ReadOnlyField()
     gross_salary = serializers.ReadOnlyField()
+    branch_name = serializers.SerializerMethodField()
+    department_name = serializers.SerializerMethodField()
+    designation_name = serializers.SerializerMethodField()
+    manager_name = serializers.SerializerMethodField()
+
+    def get_branch_name(self, obj):
+        return str(obj.branch) if obj.branch_id else ""
+
+    def get_department_name(self, obj):
+        return str(obj.department) if obj.department_id else ""
+
+    def get_designation_name(self, obj):
+        return str(obj.designation) if obj.designation_id else ""
+
+    def get_manager_name(self, obj):
+        return obj.manager.full_name if obj.manager_id else ""
 
     class Meta:
         model = Employee
@@ -61,8 +77,19 @@ class EmployeeSerializer(serializers.ModelSerializer):
             getattr(instance, "designation", None),
         )
 
-        # Require organization fields only when creating a new employee.
-        if instance is None:
+        employment_status = data.get(
+            "employment_status",
+            getattr(instance, "employment_status", None),
+        )
+
+        # A new starter can be registered before their placement is decided, so
+        # ONBOARDING records may omit branch, department, designation and salary.
+        # Everything else must be fully assigned: the figures feed payroll, and
+        # an unassigned active employee falls out of every branch/department
+        # report.
+        provisional = employment_status == "ONBOARDING"
+
+        if instance is None and not provisional:
             if not branch:
                 errors["branch"] = "Branch is required."
 
@@ -77,8 +104,32 @@ class EmployeeSerializer(serializers.ModelSerializer):
                     "Basic salary must be greater than zero."
                 )
 
-        # Prevent explicitly clearing organization fields during updates.
-        if instance is not None:
+        # Leaving ONBOARDING is the point the placement has to be complete.
+        if instance is not None and not provisional:
+            if not branch:
+                errors["branch"] = (
+                    "Branch is required once an employee is no longer onboarding."
+                )
+
+            if not department:
+                errors["department"] = (
+                    "Department is required once an employee is no longer "
+                    "onboarding."
+                )
+
+            if not designation:
+                errors["designation"] = (
+                    "Designation is required once an employee is no longer "
+                    "onboarding."
+                )
+
+            if basic_salary is None or basic_salary <= 0:
+                errors["basic_salary"] = (
+                    "Basic salary must be greater than zero."
+                )
+
+        # Prevent explicitly clearing organization fields on an active record.
+        if instance is not None and not provisional:
             if "branch" in data and data["branch"] is None:
                 errors["branch"] = "Branch cannot be cleared."
 
@@ -87,11 +138,6 @@ class EmployeeSerializer(serializers.ModelSerializer):
 
             if "designation" in data and data["designation"] is None:
                 errors["designation"] = "Designation cannot be cleared."
-
-            if "basic_salary" in data and data["basic_salary"] <= 0:
-                errors["basic_salary"] = (
-                    "Basic salary must be greater than zero."
-                )
 
         if (
             hire_date

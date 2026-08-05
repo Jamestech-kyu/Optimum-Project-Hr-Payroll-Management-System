@@ -8,6 +8,8 @@ from .views import (
     ApproveUserView,
     UpdateProfileView,
     ChangePasswordView,
+    RoleListView,
+    UserListCreateView,
 )
 
 urlpatterns = [
@@ -23,5 +25,7 @@ urlpatterns = [
     path("change-password/", ChangePasswordView.as_view(), name="change_password"),
 
     # Administration
+    path("roles/", RoleListView.as_view(), name="role_list"),
+    path("users/", UserListCreateView.as_view(), name="user_list_create"),
     path("approve/<int:user_id>/", ApproveUserView.as_view(), name="approve_user"),
 ]
