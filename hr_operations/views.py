@@ -49,6 +49,9 @@ try:
 except ImportError:
     Department = None
 
+    def get_schema_operation_parameters(self, view):
+        return []
+
 
 # =========================================================
 # PERFORMANCE API

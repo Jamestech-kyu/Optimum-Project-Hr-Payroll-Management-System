@@ -71,6 +71,15 @@ class ProvisionUserSerializer(serializers.ModelSerializer):
 
 class UserSerializer(serializers.ModelSerializer):
     role = serializers.CharField(source="role.name", read_only=True)
+    employee_id = serializers.SerializerMethodField()
+
+    def get_employee_id(self, obj):
+        employee = getattr(obj, "employee_profile", None)
+
+        if not employee:
+            return None
+
+        return employee.id
 
     class Meta:
         model = CustomUser
@@ -80,6 +89,7 @@ class UserSerializer(serializers.ModelSerializer):
             "email",
             "phone_number",
             "role",
+            "employee_id",
             "is_approved",
             "is_active",
             "created_at",

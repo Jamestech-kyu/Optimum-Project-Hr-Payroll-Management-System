@@ -1,0 +1,191 @@
+@page {
+    size: A4;
+    margin: 18mm 14mm;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 11px;
+    color: #1f2937;
+    background: #ffffff;
+}
+
+.payslip-container {
+    width: 100%;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding-bottom: 18px;
+    border-bottom: 2px solid #1f2937;
+}
+
+.company-section {
+    display: flex;
+    align-items: flex-start;
+}
+
+.company-logo {
+    width: 70px;
+    height: 70px;
+    object-fit: contain;
+    margin-right: 15px;
+}
+
+.company-section h1 {
+    margin: 0 0 6px;
+    font-size: 20px;
+}
+
+.company-section p {
+    margin: 2px 0;
+    color: #4b5563;
+}
+
+.payslip-title {
+    text-align: right;
+}
+
+.payslip-title h2 {
+    margin: 0 0 6px;
+    font-size: 24px;
+    letter-spacing: 1px;
+}
+
+.payslip-title p {
+    margin: 0;
+    font-size: 12px;
+}
+
+.employee-information,
+.payment-information {
+    margin-top: 20px;
+}
+
+.employee-information h3,
+.payment-information h3,
+.breakdown-column h3 {
+    margin: 0 0 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #d1d5db;
+    font-size: 13px;
+}
+
+.information-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px;
+}
+
+.information-grid div {
+    padding: 9px;
+    background: #f3f4f6;
+}
+
+.label {
+    display: block;
+    margin-bottom: 4px;
+    color: #6b7280;
+    font-size: 9px;
+    text-transform: uppercase;
+}
+
+.value {
+    display: block;
+    font-weight: bold;
+}
+
+.summary-section {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.summary-card {
+    padding: 12px;
+    border: 1px solid #d1d5db;
+    text-align: center;
+}
+
+.summary-card span {
+    display: block;
+    margin-bottom: 6px;
+    color: #6b7280;
+}
+
+.summary-card strong {
+    display: block;
+    font-size: 14px;
+}
+
+.payroll-breakdown {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    margin-top: 22px;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th,
+td {
+    padding: 8px;
+    border: 1px solid #d1d5db;
+}
+
+thead th {
+    background: #e5e7eb;
+    text-align: left;
+}
+
+tfoot th {
+    background: #f3f4f6;
+}
+
+.amount-column {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.net-pay-section {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 22px;
+    padding: 16px 20px;
+    border: 2px solid #111827;
+    font-size: 17px;
+}
+
+.net-pay-section strong {
+    font-size: 21px;
+}
+
+footer {
+    margin-top: 28px;
+    padding-top: 12px;
+    border-top: 1px solid #d1d5db;
+    text-align: center;
+    color: #6b7280;
+    font-size: 9px;
+}
+
+footer p {
+    margin: 4px 0;
+}
+
+.confidential-note {
+    margin-top: 10px;
+    font-style: italic;
+}

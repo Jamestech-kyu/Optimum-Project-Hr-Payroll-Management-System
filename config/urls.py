@@ -28,6 +28,8 @@ urlpatterns = [
     # Backwards-compatible alias used by the web client.
     path("api/reports/", include("reports.urls")),
     path("api/audit/",include("audit.urls"),),
+    path("api/reports/", include("reports.urls")),
+    path("api/audit/", include("audit.urls")),
     path("api/performance/", include("performance.urls")),
     path("api/training/", include("training.urls")),
     path("api/", include(api_router.urls)),

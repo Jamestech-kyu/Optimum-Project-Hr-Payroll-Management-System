@@ -1,9 +1,11 @@
 from django.shortcuts import get_object_or_404
+
 from rest_framework import filters, permissions, status, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from config.filters import SchemaCompatibleDjangoFilterBackend
+
 from drf_spectacular.utils import extend_schema
-from django_filters.rest_framework import DjangoFilterBackend
 
 from accounts.permissions import RequiredPermission
 from audit.mixins import AuditViewSetMixin
@@ -20,29 +22,31 @@ from .models import (
     TrainingRecommendation,
     TrainingSession,
 )
+
 from .serializers import (
-    TrainingAssessmentCreateSerializer,
     TrainingAssessmentSerializer,
-    TrainingAttendanceCreateSerializer,
     TrainingAttendanceSerializer,
     TrainingCategorySerializer,
     TrainingCertificateSerializer,
     TrainingCourseSerializer,
-    TrainingEnrollmentCreateSerializer,
     TrainingEnrollmentSerializer,
-    TrainingRecommendationCreateSerializer,
     TrainingRecommendationSerializer,
     TrainingSessionSerializer,
+    TrainingEnrollmentCreateSerializer,
+    TrainingAttendanceCreateSerializer,
+    TrainingAssessmentCreateSerializer,
+    TrainingRecommendationCreateSerializer,
 )
+
 from .services import (
-    accept_training_recommendation,
-    approve_training_enrollment,
-    create_training_recommendation,
-    decline_training_recommendation,
     enroll_employee_in_training,
-    record_training_assessment,
-    record_training_attendance,
+    approve_training_enrollment,
     reject_training_enrollment,
+    record_training_attendance,
+    record_training_assessment,
+    create_training_recommendation,
+    accept_training_recommendation,
+    decline_training_recommendation,
 )
 
 
@@ -64,9 +68,8 @@ class TrainingCourseViewSet(
     audit_module = "TRAINING"
 
     queryset = TrainingCourse.objects.select_related(
-        "category"
+        "category",
     )
-
     serializer_class = TrainingCourseSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -81,7 +84,6 @@ class TrainingSessionViewSet(
         "course",
         "trainer",
     )
-
     serializer_class = TrainingSessionSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -96,11 +98,10 @@ class TrainingEnrollmentViewSet(
         "employee",
         "session__course",
     )
-
     serializer_class = TrainingEnrollmentSerializer
     permission_classes = [permissions.IsAuthenticated]
     filter_backends = [
-        DjangoFilterBackend,
+        SchemaCompatibleDjangoFilterBackend,
         filters.SearchFilter,
         filters.OrderingFilter,
     ]
@@ -124,8 +125,8 @@ class TrainingEnrollmentViewSet(
 class TrainingAttendanceViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = TrainingAttendance.objects.select_related(
         "enrollment__employee",
+        "enrollment__session__course",
     )
-
     serializer_class = TrainingAttendanceSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -133,8 +134,8 @@ class TrainingAttendanceViewSet(viewsets.ReadOnlyModelViewSet):
 class TrainingAssessmentViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = TrainingAssessment.objects.select_related(
         "enrollment__employee",
+        "enrollment__session__course",
     )
-
     serializer_class = TrainingAssessmentSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -142,8 +143,8 @@ class TrainingAssessmentViewSet(viewsets.ReadOnlyModelViewSet):
 class TrainingCertificateViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = TrainingCertificate.objects.select_related(
         "enrollment__employee",
+        "enrollment__session__course",
     )
-
     serializer_class = TrainingCertificateSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -151,9 +152,10 @@ class TrainingCertificateViewSet(viewsets.ReadOnlyModelViewSet):
 class TrainingRecommendationViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = TrainingRecommendation.objects.select_related(
         "employee",
+        "performance_review",
         "recommended_course",
+        "recommended_by",
     )
-
     serializer_class = TrainingRecommendationSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -170,7 +172,7 @@ class EnrollEmployeeTrainingView(APIView):
 
     def post(self, request):
         serializer = TrainingEnrollmentCreateSerializer(
-            data=request.data
+            data=request.data,
         )
         serializer.is_valid(raise_exception=True)
 
@@ -182,24 +184,19 @@ class EnrollEmployeeTrainingView(APIView):
 
         log_activity(
             user=request.user,
-            action="ENROLL",
+            action="CREATE",
             module="Training",
             description=(
                 f"Enrolled employee "
                 f"{enrollment.employee.employee_number} "
-                f"in training session {enrollment.session_id}."
+                f"in {enrollment.session.course.title}."
             ),
             object_id=enrollment.id,
             ip_address=get_client_ip(request),
         )
 
         return Response(
-            {
-                "message": "Employee enrolled successfully.",
-                "enrollment": TrainingEnrollmentSerializer(
-                    enrollment
-                ).data,
-            },
+            TrainingEnrollmentSerializer(enrollment).data,
             status=status.HTTP_201_CREATED,
         )
 
@@ -213,7 +210,7 @@ class ApproveTrainingEnrollmentView(APIView):
         enrollment = get_object_or_404(
             TrainingEnrollment.objects.select_related(
                 "employee",
-                "session",
+                "session__course",
             ),
             id=enrollment_id,
         )
@@ -234,10 +231,9 @@ class ApproveTrainingEnrollmentView(APIView):
         return Response(
             {
                 "message": "Training enrollment approved successfully.",
-                "enrollment": TrainingEnrollmentSerializer(
-                    enrollment
-                ).data,
-            }
+                "enrollment": TrainingEnrollmentSerializer(enrollment).data,
+            },
+            status=status.HTTP_200_OK,
         )
 
 
@@ -250,7 +246,7 @@ class RejectTrainingEnrollmentView(APIView):
         enrollment = get_object_or_404(
             TrainingEnrollment.objects.select_related(
                 "employee",
-                "session",
+                "session__course",
             ),
             id=enrollment_id,
         )
@@ -271,16 +267,15 @@ class RejectTrainingEnrollmentView(APIView):
         return Response(
             {
                 "message": "Training enrollment rejected successfully.",
-                "enrollment": TrainingEnrollmentSerializer(
-                    enrollment
-                ).data,
-            }
+                "enrollment": TrainingEnrollmentSerializer(enrollment).data,
+            },
+            status=status.HTTP_200_OK,
         )
 
 
 @extend_schema(
     request=TrainingAttendanceCreateSerializer,
-    responses={200: TrainingAttendanceSerializer},
+    responses={201: TrainingAttendanceSerializer},
     tags=["Training"],
 )
 class RecordTrainingAttendanceView(APIView):
@@ -290,44 +285,35 @@ class RecordTrainingAttendanceView(APIView):
 
     def post(self, request):
         serializer = TrainingAttendanceCreateSerializer(
-            data=request.data
+            data=request.data,
         )
         serializer.is_valid(raise_exception=True)
 
         attendance = record_training_attendance(
             enrollment_id=serializer.validated_data["enrollment_id"],
-            attendance_status=serializer.validated_data[
-                "attendance_status"
-            ],
+            attendance_status=serializer.validated_data["attendance_status"],
             check_in=serializer.validated_data.get("check_in"),
             check_out=serializer.validated_data.get("check_out"),
         )
 
         log_activity(
             user=request.user,
-            action="ATTENDANCE",
+            action="CREATE",
             module="Training",
-            description=(
-                f"Recorded training attendance "
-                f"{attendance.id}."
-            ),
+            description=f"Recorded training attendance {attendance.id}.",
             object_id=attendance.id,
             ip_address=get_client_ip(request),
         )
 
         return Response(
-            {
-                "message": "Training attendance recorded successfully.",
-                "attendance": TrainingAttendanceSerializer(
-                    attendance
-                ).data,
-            }
+            TrainingAttendanceSerializer(attendance).data,
+            status=status.HTTP_201_CREATED,
         )
 
 
 @extend_schema(
     request=TrainingAssessmentCreateSerializer,
-    responses={200: TrainingAssessmentSerializer},
+    responses={201: TrainingAssessmentSerializer},
     tags=["Training"],
 )
 class RecordTrainingAssessmentView(APIView):
@@ -337,7 +323,7 @@ class RecordTrainingAssessmentView(APIView):
 
     def post(self, request):
         serializer = TrainingAssessmentCreateSerializer(
-            data=request.data
+            data=request.data,
         )
         serializer.is_valid(raise_exception=True)
 
@@ -349,23 +335,16 @@ class RecordTrainingAssessmentView(APIView):
 
         log_activity(
             user=request.user,
-            action="ASSESSMENT",
+            action="CREATE",
             module="Training",
-            description=(
-                f"Recorded training assessment "
-                f"{assessment.id}."
-            ),
+            description=f"Recorded training assessment {assessment.id}.",
             object_id=assessment.id,
             ip_address=get_client_ip(request),
         )
 
         return Response(
-            {
-                "message": "Training assessment recorded successfully.",
-                "assessment": TrainingAssessmentSerializer(
-                    assessment
-                ).data,
-            }
+            TrainingAssessmentSerializer(assessment).data,
+            status=status.HTTP_201_CREATED,
         )
 
 
@@ -381,7 +360,7 @@ class RecommendTrainingView(APIView):
 
     def post(self, request):
         serializer = TrainingRecommendationCreateSerializer(
-            data=request.data
+            data=request.data,
         )
         serializer.is_valid(raise_exception=True)
 
@@ -399,32 +378,22 @@ class RecommendTrainingView(APIView):
 
         log_activity(
             user=request.user,
-            action="RECOMMEND",
+            action="CREATE",
             module="Training",
-            description=(
-                f"Recommended training course "
-                f"{recommendation.recommended_course_id} "
-                f"for employee "
-                f"{recommendation.employee.employee_number}."
-            ),
+            description=f"Created training recommendation {recommendation.id}.",
             object_id=recommendation.id,
             ip_address=get_client_ip(request),
         )
 
         return Response(
-            {
-                "message": "Training recommendation created successfully.",
-                "recommendation": TrainingRecommendationSerializer(
-                    recommendation
-                ).data,
-            },
+            TrainingRecommendationSerializer(recommendation).data,
             status=status.HTTP_201_CREATED,
         )
 
 
 class AcceptTrainingRecommendationView(APIView):
     permission_classes = [
-        RequiredPermission("training.view")
+        RequiredPermission("training.recommend")
     ]
 
     def post(self, request, recommendation_id):
@@ -442,12 +411,9 @@ class AcceptTrainingRecommendationView(APIView):
 
         log_activity(
             user=request.user,
-            action="ACCEPT",
+            action="UPDATE",
             module="Training",
-            description=(
-                f"Accepted training recommendation "
-                f"{recommendation.id}."
-            ),
+            description=f"Accepted training recommendation {recommendation.id}.",
             object_id=recommendation.id,
             ip_address=get_client_ip(request),
         )
@@ -456,15 +422,16 @@ class AcceptTrainingRecommendationView(APIView):
             {
                 "message": "Training recommendation accepted successfully.",
                 "recommendation": TrainingRecommendationSerializer(
-                    recommendation
+                    recommendation,
                 ).data,
-            }
+            },
+            status=status.HTTP_200_OK,
         )
 
 
 class DeclineTrainingRecommendationView(APIView):
     permission_classes = [
-        RequiredPermission("training.view")
+        RequiredPermission("training.recommend")
     ]
 
     def post(self, request, recommendation_id):
@@ -482,12 +449,9 @@ class DeclineTrainingRecommendationView(APIView):
 
         log_activity(
             user=request.user,
-            action="DECLINE",
+            action="UPDATE",
             module="Training",
-            description=(
-                f"Declined training recommendation "
-                f"{recommendation.id}."
-            ),
+            description=f"Declined training recommendation {recommendation.id}.",
             object_id=recommendation.id,
             ip_address=get_client_ip(request),
         )
@@ -496,7 +460,8 @@ class DeclineTrainingRecommendationView(APIView):
             {
                 "message": "Training recommendation declined successfully.",
                 "recommendation": TrainingRecommendationSerializer(
-                    recommendation
+                    recommendation,
                 ).data,
-            }
+            },
+            status=status.HTTP_200_OK,
         )

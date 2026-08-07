@@ -1,7 +1,6 @@
 from django.conf import settings
 from django.db import models
 
-
 class ReportTemplate(models.Model):
     REPORT_TYPES = [
         ("EMPLOYEE", "Employee"),

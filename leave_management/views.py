@@ -1,7 +1,7 @@
 from rest_framework import filters, viewsets, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from django_filters.rest_framework import DjangoFilterBackend
+from config.filters import SchemaCompatibleDjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from employees.models import Employee
 from accounts.permissions import RequiredPermission
@@ -104,7 +104,7 @@ class LeaveRequestViewSet(
 
     serializer_class = LeaveRequestSerializer
     filter_backends = [
-        DjangoFilterBackend,
+        SchemaCompatibleDjangoFilterBackend,
         filters.SearchFilter,
         filters.OrderingFilter,
     ]

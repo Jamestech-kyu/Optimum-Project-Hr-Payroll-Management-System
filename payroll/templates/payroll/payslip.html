@@ -1,0 +1,330 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+
+    <title>
+        Payslip -
+        {{ employee.full_name }}
+    </title>
+
+    <link
+        rel="stylesheet"
+        href="{% static 'payroll/css/payslip.css' %}"
+    >
+</head>
+
+<body>
+    <div class="payslip-container">
+
+        <header class="header">
+            <div class="company-section">
+                <img
+                    src="{% static 'payroll/logo/company_logo.png' %}"
+                    alt="Company Logo"
+                    class="company-logo"
+                >
+
+                <div>
+                    <h1>{{ company_name }}</h1>
+
+                    {% if company_address %}
+                        <p>{{ company_address }}</p>
+                    {% endif %}
+
+                    {% if company_email %}
+                        <p>
+                            Email:
+                            {{ company_email }}
+                        </p>
+                    {% endif %}
+
+                    {% if company_phone %}
+                        <p>
+                            Phone:
+                            {{ company_phone }}
+                        </p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="payslip-title">
+                <h2>PAYSLIP</h2>
+
+                <p>
+                    Period:
+                    {{ payroll_run.month }}/
+                    {{ payroll_run.year }}
+                </p>
+            </div>
+        </header>
+
+        <section class="employee-information">
+            <h3>Employee Information</h3>
+
+            <div class="information-grid">
+                <div>
+                    <span class="label">
+                        Employee Name
+                    </span>
+
+                    <span class="value">
+                        {{ employee.full_name }}
+                    </span>
+                </div>
+
+                <div>
+                    <span class="label">
+                        Employee Number
+                    </span>
+
+                    <span class="value">
+                        {{ employee.employee_number|default:"N/A" }}
+                    </span>
+                </div>
+
+                <div>
+                    <span class="label">
+                        Department
+                    </span>
+
+                    <span class="value">
+                        {{ employee.department|default:"N/A" }}
+                    </span>
+                </div>
+
+                <div>
+                    <span class="label">
+                        Designation
+                    </span>
+
+                    <span class="value">
+                        {{ employee.designation|default:"N/A" }}
+                    </span>
+                </div>
+
+                <div>
+                    <span class="label">
+                        Employment Status
+                    </span>
+
+                    <span class="value">
+                        {{ employee.employment_status|default:"N/A" }}
+                    </span>
+                </div>
+
+                <div>
+                    <span class="label">
+                        Payment Currency
+                    </span>
+
+                    <span class="value">
+                        KES
+                    </span>
+                </div>
+            </div>
+        </section>
+
+        <section class="summary-section">
+            <div class="summary-card">
+                <span>Basic Salary</span>
+
+                <strong>
+                    {{ payslip.basic_salary|floatformat:2 }}
+                </strong>
+            </div>
+
+            <div class="summary-card">
+                <span>Total Allowances</span>
+
+                <strong>
+                    {{ payslip.total_allowances|floatformat:2 }}
+                </strong>
+            </div>
+
+            <div class="summary-card">
+                <span>Gross Pay</span>
+
+                <strong>
+                    {{ payslip.gross_pay|floatformat:2 }}
+                </strong>
+            </div>
+
+            <div class="summary-card">
+                <span>Total Deductions</span>
+
+                <strong>
+                    {{ payslip.total_deductions|floatformat:2 }}
+                </strong>
+            </div>
+        </section>
+
+        <section class="payroll-breakdown">
+            <div class="breakdown-column">
+                <h3>Earnings</h3>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Description</th>
+                            <th class="amount-column">
+                                Amount
+                            </th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        <tr>
+                            <td>Basic Salary</td>
+
+                            <td class="amount-column">
+                                {{ payslip.basic_salary|floatformat:2 }}
+                            </td>
+                        </tr>
+
+                        {% for allowance in allowances %}
+                            <tr>
+                                <td>
+                                    {{ allowance.name }}
+                                </td>
+
+                                <td class="amount-column">
+                                    {{ allowance.amount|floatformat:2 }}
+                                </td>
+                            </tr>
+                        {% empty %}
+                            <tr>
+                                <td colspan="2">
+                                    No additional allowances
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+
+                    <tfoot>
+                        <tr>
+                            <th>Total Earnings</th>
+
+                            <th class="amount-column">
+                                {{ payslip.gross_pay|floatformat:2 }}
+                            </th>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+
+            <div class="breakdown-column">
+                <h3>Deductions</h3>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Description</th>
+
+                            <th class="amount-column">
+                                Amount
+                            </th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        {% for deduction in deductions %}
+                            <tr>
+                                <td>
+                                    {{ deduction.name }}
+                                </td>
+
+                                <td class="amount-column">
+                                    {{ deduction.amount|floatformat:2 }}
+                                </td>
+                            </tr>
+                        {% empty %}
+                            <tr>
+                                <td colspan="2">
+                                    No deductions
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+
+                    <tfoot>
+                        <tr>
+                            <th>Total Deductions</th>
+
+                            <th class="amount-column">
+                                {{ payslip.total_deductions|floatformat:2 }}
+                            </th>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </section>
+
+        <section class="net-pay-section">
+            <span>NET PAY</span>
+
+            <strong>
+                KES {{ payslip.net_pay|floatformat:2 }}
+            </strong>
+        </section>
+
+        <section class="payment-information">
+            <h3>Payment Information</h3>
+
+            <div class="information-grid">
+                <div>
+                    <span class="label">
+                        Bank
+                    </span>
+
+                    <span class="value">
+                        {{ employee.bank_name|default:"N/A" }}
+                    </span>
+                </div>
+
+                <div>
+                    <span class="label">
+                        Account Name
+                    </span>
+
+                    <span class="value">
+                        {{ employee.bank_account_name|default:"N/A" }}
+                    </span>
+                </div>
+
+                <div>
+                    <span class="label">
+                        Account Number
+                    </span>
+
+                    <span class="value">
+                        {{ employee.bank_account_number|default:"N/A" }}
+                    </span>
+                </div>
+            </div>
+        </section>
+
+        <footer>
+            <p>
+                Verification Code:
+                <strong>
+                    {{ payslip.verification_code }}
+                </strong>
+            </p>
+
+            <p>
+                Generated on:
+                {{ generated_date|date:"d F Y H:i" }}
+            </p>
+
+            <p class="confidential-note">
+                This document is confidential and intended
+                only for the named employee.
+            </p>
+        </footer>
+
+    </div>
+</body>
+</html>

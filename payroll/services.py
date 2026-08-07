@@ -1,50 +1,41 @@
+import logging
 from decimal import Decimal
 from calendar import monthrange
 from datetime import date
 
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from employees.models import Employee
 from audit.services import log_activity
 from audit.utils import get_client_ip
 
-from .models import (
-    PayrollRun,
-    Payslip,
-    PayrollAllowance,
-    PayrollDeduction,
-    BankPayment,
-    EmployeePayComponent,
-    TaxBand,
-    StatutoryRate,
+from .calculators import (
+    calculate_employee_allowances,
+    calculate_employee_basic_salary,
+    calculate_employee_extra_components,
+    calculate_employee_extra_deductions,
+    calculate_employee_extra_earnings,
+    calculate_employee_payroll,
+    calculate_gross_pay,
+    calculate_paye,
+    calculate_statutory_deductions,
 )
+from .generators import generate_payslip
+from .models import PayrollRun
 
-def calculate_employee_basic_salary(employee):
-    return employee.basic_salary or Decimal("0.00")
-
-
-def calculate_employee_allowances(employee):
-    allowances = {
-        "House Allowance": employee.house_allowance or Decimal("0.00"),
-        "Transport Allowance": employee.transport_allowance or Decimal("0.00"),
-        "Medical Allowance": employee.medical_allowance or Decimal("0.00"),
-        "Other Allowance": employee.other_allowance or Decimal("0.00"),
-    }
-
-    total = sum(allowances.values(), Decimal("0.00"))
-
-    return total, allowances
+logger = logging.getLogger(__name__)
 
 
-def calculate_employee_extra_components(employee):
-    earnings = {}
-    deductions = {}
-
-    components = EmployeePayComponent.objects.filter(
-        employee=employee,
-        is_active=True,
-        component__is_active=True,
+def generate_payroll_run(month, year, processed_by, request=None):
+    payroll_run, created = PayrollRun.objects.get_or_create(
+        month=month,
+        year=year,
+        defaults={
+            "processed_by": processed_by,
+            "status": "DRAFT",
+        },
     )
 
     for item in components:
@@ -150,25 +141,24 @@ def calculate_employee_payroll(employee, effective_date=None):
         effective_date=effective_date,
     )
     extra_deductions = gross_data["extra_deductions"]
-
-    total_deductions = (
-        paye
-        + sum(statutory_deductions.values(), Decimal("0.00"))
-        + sum(extra_deductions.values(), Decimal("0.00"))
+    log_activity(
+        user=processed_by,
+        action="CREATE",
+        module="Payroll",
+        description=f"Queued payroll generation for {month}/{year}.",
+        object_id=payroll_run.id,
+        ip_address=get_client_ip(request) if request else None,
     )
 
-    net_pay = gross_pay - total_deductions
+    return payroll_run
 
-    return {
-        "basic_salary": gross_data["basic_salary"],
-        "allowances": gross_data["allowances"],
-        "extra_earnings": gross_data["extra_earnings"],
-        "gross_pay": gross_pay.quantize(Decimal("0.01")),
-        "paye": paye,
-        "statutory_deductions": statutory_deductions,
-        "extra_deductions": extra_deductions,
-        "total_deductions": total_deductions.quantize(Decimal("0.01")),
-        "net_pay": net_pay.quantize(Decimal("0.01")),
+
+class PayrollProcessor:
+    ALLOWED_STATUSES = {
+        "DRAFT",
+        "QUEUED",
+        "FAILED",
+        "COMPLETED_WITH_ERRORS",
     }
 
 
@@ -191,53 +181,111 @@ def generate_payslip(payroll_run, employee):
             "total_allowances": sum(
                 payroll_data["allowances"].values(),
                 Decimal("0.00"),
+    @staticmethod
+    def process(payroll_run, progress_callback=None):
+        payroll_run.refresh_from_db()
+
+        if payroll_run.status not in (
+            PayrollProcessor.ALLOWED_STATUSES
+            | {"PROCESSING"}
+        ):
+            raise ValueError(
+                f"Payroll cannot be processed while its status is "
+                f"{payroll_run.status}."
             )
-            + sum(
-                payroll_data["extra_earnings"].values(),
-                Decimal("0.00"),
-            ),
-            "gross_pay": payroll_data["gross_pay"],
-            "tax_amount": payroll_data["paye"],
-            "total_deductions": payroll_data["total_deductions"],
-            "net_pay": payroll_data["net_pay"],
-        },
-    )
 
-    payslip.allowances.all().delete()
-    payslip.deductions.all().delete()
-
-    for name, amount in payroll_data["allowances"].items():
-        PayrollAllowance.objects.create(
-            payslip=payslip,
-            name=name,
-            amount=amount,
+        employees = (
+            Employee.objects
+            .filter(
+                employment_status__in=[
+                    "ACTIVE",
+                    "PROBATION",
+                    "ONBOARDING",
+                ]
+            )
+            .order_by("id")
         )
 
-    for name, amount in payroll_data["extra_earnings"].items():
-        PayrollAllowance.objects.create(
-            payslip=payslip,
-            name=name,
-            amount=amount,
+        total = employees.count()
+        processed = 0
+        failed = 0
+        failures = []
+
+        payroll_run.total_employees = total
+        payroll_run.processed_employees = 0
+        payroll_run.failed_employees = 0
+        payroll_run.progress_percentage = Decimal("0.00")
+        payroll_run.failure_details = []
+
+        payroll_run.save(
+            update_fields=[
+                "total_employees",
+                "processed_employees",
+                "failed_employees",
+                "progress_percentage",
+                "failure_details",
+            ]
         )
 
-    PayrollDeduction.objects.create(
-        payslip=payslip,
-        name="PAYE",
-        amount=payroll_data["paye"],
-    )
+        for employee in employees.iterator(chunk_size=100):
+            try:
+                with transaction.atomic():
+                    generate_payslip(
+                        payroll_run,
+                        employee,
+                    )
 
-    for name, amount in payroll_data["statutory_deductions"].items():
-        PayrollDeduction.objects.create(
-            payslip=payslip,
-            name=name,
-            amount=amount,
-        )
+            except Exception as exc:
+                failed += 1
 
-    for name, amount in payroll_data["extra_deductions"].items():
-        PayrollDeduction.objects.create(
-            payslip=payslip,
-            name=name,
-            amount=amount,
+                failure = {
+                    "employee_id": employee.id,
+                    "employee_name": employee.full_name,
+                    "error": str(exc),
+                }
+
+                failures.append(failure)
+
+                logger.exception(
+                    "Payroll failed for employee %s in payroll run %s.",
+                    employee.id,
+                    payroll_run.id,
+                )
+
+            finally:
+                processed += 1
+
+                percentage = (
+                    Decimal(processed)
+                    / Decimal(total)
+                    * Decimal("100.00")
+                    if total
+                    else Decimal("100.00")
+                ).quantize(Decimal("0.01"))
+
+                PayrollRun.objects.filter(
+                    pk=payroll_run.pk
+                ).update(
+                    processed_employees=processed,
+                    failed_employees=failed,
+                    progress_percentage=percentage,
+                    failure_details=failures,
+                )
+
+                if progress_callback:
+                    progress_callback(
+                        processed=processed,
+                        total=total,
+                        failed=failed,
+                        percentage=percentage,
+                    )
+
+        payroll_run.refresh_from_db()
+        payroll_run.processed_at = timezone.now()
+        payroll_run.save(
+            update_fields=[
+                "processed_at",
+            ]
         )
 
     primary_account = employee.bank_accounts.filter(is_primary=True).first()
@@ -310,8 +358,16 @@ def generate_payroll_run(month, year, processed_by, request=None, employee_ids=N
         object_id=payroll_run.id,
         ip_address=get_client_ip(request) if request else None,
     )
+        return {
+            "payroll_run_id": payroll_run.id,
+            "total": total,
+            "processed": processed,
+            "successful": processed - failed,
+            "failed": failed,
+            "failure_details": failures,
+        }
 
-    return payroll_run
+
 @transaction.atomic
 def submit_payroll_for_approval(
     payroll_run,
@@ -319,9 +375,16 @@ def submit_payroll_for_approval(
     comment="",
     request=None,
 ):
-    if payroll_run.status != "DRAFT":
+    if payroll_run.status != "COMPLETED":
         raise ValueError(
-            "Only a draft payroll can be submitted for approval."
+            "Only successfully completed payroll can be submitted "
+            "for approval."
+        )
+
+    if payroll_run.failed_employees > 0:
+        raise ValueError(
+            "Payroll cannot be submitted because some employee "
+            "records failed processing."
         )
 
     if not payroll_run.payslips.exists():
@@ -432,6 +495,17 @@ def finalize_payroll_run(
             "Only an approved payroll can be finalized."
         )
 
+    if payroll_run.failed_employees > 0:
+        raise ValueError(
+            "Payroll cannot be finalized because it contains "
+            "failed employee records."
+        )
+
+    if not payroll_run.payslips.exists():
+        raise ValueError(
+            "Payroll cannot be finalized because no payslips exist."
+        )
+
     # Synchronize bank payment records with the latest employee bank details
     for payment in payroll_run.bank_payments.select_related("employee"):
         employee = payment.employee
@@ -462,7 +536,10 @@ def finalize_payroll_run(
         )
 
     missing_accounts = payroll_run.bank_payments.filter(
-        account_number=""
+        Q(account_number="")
+        | Q(account_number__isnull=True)
+        | Q(bank_name="")
+        | Q(account_name="")
     ).select_related("employee")
 
     if missing_accounts.exists():

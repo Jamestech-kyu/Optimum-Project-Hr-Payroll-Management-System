@@ -37,7 +37,43 @@ class PayrollRunSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = PayrollRun
-        fields = "__all__"
+        fields = [
+            "id",
+            "month",
+            "year",
+            "status",
+            "processed_by",
+            "approved_by",
+            "celery_task_id",
+            "total_employees",
+            "processed_employees",
+            "failed_employees",
+            "progress_percentage",
+            "failure_details",
+            "started_at",
+            "completed_at",
+            "processed_at",
+            "approved_at",
+            "error_message",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "status",
+            "celery_task_id",
+            "total_employees",
+            "processed_employees",
+            "failed_employees",
+            "progress_percentage",
+            "failure_details",
+            "started_at",
+            "completed_at",
+            "processed_at",
+            "approved_at",
+            "error_message",
+            "created_at",
+            "updated_at",
+        ]
 
     def get_pay_period(self, obj):
         if obj.month and obj.year:
