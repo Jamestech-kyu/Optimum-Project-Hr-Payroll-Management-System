@@ -124,7 +124,6 @@ class PayslipSerializer(serializers.ModelSerializer):
         source="employee.employee_number",
         read_only=True,
     )
-    reviewed_by_name = serializers.CharField(source="reviewed_by.full_name", read_only=True)
 
     payroll_month = serializers.IntegerField(
         source="payroll_run.month",
@@ -151,6 +150,17 @@ class PayslipSerializer(serializers.ModelSerializer):
         read_only=True,
     )
 
+    reviewed_by_name = serializers.SerializerMethodField()
+
+    def get_reviewed_by_name(self, obj):
+        if not obj.reviewed_by:
+            return ""
+        return (
+            obj.reviewed_by.get_full_name()
+            or getattr(obj.reviewed_by, "full_name", "")
+            or obj.reviewed_by.username
+        )
+
     class Meta:
         model = Payslip
         fields = [
@@ -161,8 +171,8 @@ class PayslipSerializer(serializers.ModelSerializer):
             "payroll_status",
             "employee",
             "employee_name",
-            "employee_email",
             "employee_number",
+            "employee_email",
             "department_name",
             "designation_name",
             "basic_salary",
@@ -552,23 +562,20 @@ class PayrollActionSerializer(serializers.Serializer):
     )
 
 
+class PayslipReviewSerializer(PayrollActionSerializer):
+    payslip_ids = serializers.ListField(
+        child=serializers.IntegerField(min_value=1),
+        allow_empty=False,
+    )
+    action = serializers.ChoiceField(choices=["APPROVE", "REJECT"])
+
+
 class PayrollCancelSerializer(serializers.Serializer):
     reason = serializers.CharField(
         required=True,
         allow_blank=False,
         max_length=1000,
     )
-
-
-class PayslipReviewSerializer(serializers.Serializer):
-    payslip_ids = serializers.ListField(child=serializers.IntegerField(min_value=1), allow_empty=False)
-    action = serializers.ChoiceField(choices=["APPROVE", "REJECT"])
-    comment = serializers.CharField(required=False, allow_blank=True, max_length=1000)
-
-    def validate(self, data):
-        if data["action"] == "REJECT" and not data.get("comment", "").strip():
-            raise serializers.ValidationError({"comment": "A reason is required when rejecting payroll items."})
-        return data
 
 
 class BankReconciliationSerializer(serializers.Serializer):

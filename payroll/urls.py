@@ -43,17 +43,8 @@ router.register("policies", PayrollPolicyViewSet)
 
 urlpatterns = [
     path("", include(router.urls)),
-    path(
-        "approval-queue/",
-        PayrollApprovalQueueView.as_view(),
-        name="payroll-approval-queue",
-    ),
-    path(
-        "history/",
-        PayrollHistoryView.as_view(),
-        name="payroll-history",
-    ),
-
+    path("approval-queue/", PayrollApprovalQueueView.as_view(), name="payroll-approval-queue"),
+    path("history/", PayrollHistoryView.as_view(), name="payroll-history"),
     path(
         "generate/",
         GeneratePayrollView.as_view(),
@@ -76,7 +67,6 @@ urlpatterns = [
         PayslipReviewView.as_view(),
         name="review-payroll-payslips",
     ),
-
     path(
         "runs/<int:payroll_run_id>/finalize/",
         FinalizePayrollView.as_view(),

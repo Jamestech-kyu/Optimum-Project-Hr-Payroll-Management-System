@@ -5,6 +5,7 @@ from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django.db.models import Count, Sum, Q
+from django.db import transaction
 from django_filters.rest_framework import DjangoFilterBackend
 
 from accounts.permissions import RequiredPermission
@@ -235,8 +236,39 @@ class OffboardingCaseViewSet(viewsets.ModelViewSet):
     filterset_fields = ["status", "employee", "exit_type"]
     search_fields = ["employee__first_name", "employee__last_name", "employee__employee_number", "reason"]
 
+    @transaction.atomic
     def perform_create(self, serializer):
-        serializer.save(initiated_by=self.request.user)
+        employee = serializer.validated_data["employee"]
+        if OffboardingCase.objects.filter(
+            employee=employee,
+            status__in=["PENDING", "IN_PROGRESS", "OVERDUE"],
+        ).exists():
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({"employee": "This employee already has an active offboarding case."})
+
+        case = serializer.save(initiated_by=self.request.user)
+        checklist = [
+            ("handover", "Knowledge transfer and handover", "Document responsibilities and hand over active work."),
+            ("assets", "Return company assets", "Return laptop, access cards, and assigned equipment."),
+            ("it-access", "Revoke system access", "Disable company accounts and system access on the final day."),
+            ("finance", "Review final settlement", "Confirm final salary, reimbursements, and deductions."),
+            ("statutory", "Complete statutory clearance", "Complete the required statutory and benefits clearance."),
+            ("exit-interview", "Conduct exit interview", "Record feedback and the employee's exit reason."),
+            ("documentation", "Archive employee records", "File the exit documentation and update employee records."),
+        ]
+        OffboardingChecklistItem.objects.bulk_create([
+            OffboardingChecklistItem(
+                case=case,
+                category=category,
+                item=item,
+                description=description,
+                due_date=case.last_working_day,
+                order=index,
+            )
+            for index, (category, item, description) in enumerate(checklist, start=1)
+        ])
+        OffboardingExitInterview.objects.get_or_create(case=case)
+        OffboardingFinalSettlement.objects.get_or_create(case=case)
 
 
 class OffboardingChecklistItemViewSet(viewsets.ModelViewSet):

@@ -183,12 +183,33 @@ class TrainingSerializer(serializers.ModelSerializer):
 
 
 class OffboardingCaseSerializer(serializers.ModelSerializer):
-    employee_name = serializers.CharField(source="employee.full_name", read_only=True)
+    employee_name = serializers.SerializerMethodField()
     employee_number = serializers.CharField(source="employee.employee_number", read_only=True)
+    employee_email = serializers.CharField(source="employee.work_email", read_only=True)
+    branch_name = serializers.CharField(source="employee.branch.name", read_only=True)
+    department_name = serializers.CharField(source="employee.department.name", read_only=True)
+    position = serializers.CharField(source="employee.designation.title", read_only=True)
+    initiated_by_name = serializers.SerializerMethodField()
+    checklist_total = serializers.SerializerMethodField()
+    checklist_completed = serializers.SerializerMethodField()
+
+    def get_employee_name(self, obj):
+        return employee_display_name(obj.employee)
+
+    def get_initiated_by_name(self, obj):
+        if not obj.initiated_by:
+            return ""
+        return obj.initiated_by.get_full_name() or obj.initiated_by.username
+
+    def get_checklist_total(self, obj):
+        return obj.checklist_items.count()
+
+    def get_checklist_completed(self, obj):
+        return obj.checklist_items.filter(status="COMPLETED").count()
 
     class Meta:
         model = OffboardingCase
-        fields = ["id", "employee", "employee_name", "employee_number", "exit_type", "reason", "last_working_day", "notice_period_status", "status", "initiated_by", "created_at", "updated_at", "completed_at"]
+        fields = ["id", "employee", "employee_name", "employee_number", "employee_email", "branch_name", "department_name", "position", "exit_type", "reason", "last_working_day", "notice_period_status", "status", "initiated_by", "initiated_by_name", "checklist_total", "checklist_completed", "created_at", "updated_at", "completed_at"]
         read_only_fields = ["initiated_by", "created_at", "updated_at", "completed_at"]
 
 
