@@ -3,6 +3,9 @@ from rest_framework.decorators import action
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema
+from django.http import FileResponse, HttpResponse
+from django.utils import timezone
+from django_filters.rest_framework import DjangoFilterBackend
 from django.http import FileResponse
 from django.db import transaction
 from config.filters import SchemaCompatibleDjangoFilterBackend
@@ -12,7 +15,9 @@ from accounts.object_permissions import (
     check_related_employee_permission,
 )
 from accounts.permissions import RequiredPermission
+from accounts.scopes import scope_related_employee_queryset
 from audit.mixins import AuditViewSetMixin
+from audit.models import AuditLog
 from .models import (
     PayrollRun,
     Payslip,
@@ -42,12 +47,15 @@ from .serializers import (
     PayrollPolicySerializer,
     GeneratePayrollSerializer,
     PayrollActionSerializer,
+    PayslipReviewSerializer,
     PayrollCancelSerializer,
+    BankReconciliationSerializer,
 )
 from .services import (
     generate_payroll_run,
     submit_payroll_for_approval,
     approve_payroll_run,
+    review_payslips,
     finalize_payroll_run,
     cancel_payroll_run,
 )
@@ -59,9 +67,16 @@ class PayrollRunViewSet(
 ):
     audit_module = "PAYROLL"
 
-    queryset = PayrollRun.objects.all()
+    queryset = PayrollRun.objects.select_related(
+        "processed_by",
+        "approved_by",
+    ).all()
     serializer_class = PayrollRunSerializer
     permission_classes = [permissions.IsAuthenticated]
+    http_method_names = ["get", "head", "options"]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ["month", "year", "status"]
+    ordering_fields = ["month", "year", "status", "created_at", "processed_at", "approved_at"]
 
     @action(
         detail=True,
@@ -161,9 +176,12 @@ class PayslipViewSet(
     queryset = Payslip.objects.select_related(
         "employee",
         "payroll_run",
+        "employee__department",
+        "employee__designation",
     )
     serializer_class = PayslipSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [RequiredPermission("payroll.view")]
+    http_method_names = ["get", "head", "options"]
     filter_backends = [
         SchemaCompatibleDjangoFilterBackend,
         filters.SearchFilter,
@@ -180,6 +198,18 @@ class PayslipViewSet(
         "employee",
         "payroll_run",
     ]
+
+    def get_queryset(self):
+        # Payslips carry salary data, so rows are restricted to the caller's
+        # data scope: EMPLOYEE holds payroll.view at OWN scope and therefore
+        # sees only their own, while HR and payroll roles hold it organisation
+        # wide.
+        return scope_related_employee_queryset(
+            user=self.request.user,
+            queryset=super().get_queryset(),
+            employee_field="employee",
+            permission_codename="payroll.view",
+        )
 
     def get_object(self):
         return check_related_employee_permission(
@@ -202,6 +232,7 @@ class PayrollAllowanceViewSet(
     queryset = PayrollAllowance.objects.all()
     serializer_class = PayrollAllowanceSerializer
     permission_classes = [permissions.IsAuthenticated]
+    http_method_names = ["get", "head", "options"]
 
 
 class PayrollDeductionViewSet(
@@ -213,6 +244,7 @@ class PayrollDeductionViewSet(
     queryset = PayrollDeduction.objects.all()
     serializer_class = PayrollDeductionSerializer
     permission_classes = [permissions.IsAuthenticated]
+    http_method_names = ["get", "head", "options"]
 
 
 class BankPaymentViewSet(
@@ -221,9 +253,186 @@ class BankPaymentViewSet(
 ):
     audit_module = "PAYROLL"
 
-    queryset = BankPayment.objects.all()
+    queryset = BankPayment.objects.select_related("employee", "payroll_run").all()
     serializer_class = BankPaymentSerializer
     permission_classes = [permissions.IsAuthenticated]
+    http_method_names = ["get", "head", "options"]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ["payroll_run", "status", "employee"]
+    ordering_fields = ["created_at", "amount", "status"]
+
+
+class PayrollApprovalQueueView(APIView):
+    permission_classes = [RequiredPermission("payroll.approve")]
+
+    def get(self, request):
+        runs = (
+            PayrollRun.objects.filter(status__in=["PENDING_APPROVAL", "APPROVED", "FINALIZED"])
+            .select_related("processed_by", "approved_by")
+            .prefetch_related(
+                "payslips__employee__department",
+                "payslips__employee__designation",
+                "payslips__reviewed_by",
+            )
+            .order_by("-created_at")
+        )
+        return Response({
+            "results": [
+                {
+                    "run": PayrollRunSerializer(run, context={"request": request}).data,
+                    "payslips": PayslipSerializer(
+                        run.payslips.all(), many=True, context={"request": request}
+                    ).data,
+                }
+                for run in runs
+            ]
+        })
+
+
+class PayrollHistoryView(APIView):
+    permission_classes = [RequiredPermission("payroll.view")]
+
+    def get(self, request):
+        runs = (
+            PayrollRun.objects.select_related("processed_by", "approved_by")
+            .prefetch_related(
+                "payslips__employee__department",
+                "payslips__employee__designation",
+                "payslips__reviewed_by",
+                "bank_payments",
+            )
+            .order_by("-created_at")
+        )
+        records = []
+        for run in runs:
+            audit_entries = AuditLog.objects.filter(
+                module__iexact="Payroll", object_id=str(run.id)
+            ).select_related("user").order_by("created_at")
+            history = [
+                {
+                    "id": entry.id,
+                    "action": entry.description or entry.get_action_display(),
+                    "date": entry.created_at,
+                    "user": (
+                        entry.user.get_full_name()
+                        or getattr(entry.user, "full_name", "")
+                        or entry.user.username
+                    ) if entry.user else "System",
+                    "note": entry.description,
+                }
+                for entry in audit_entries
+            ]
+            records.append({
+                "run": PayrollRunSerializer(run, context={"request": request}).data,
+                "payslips": PayslipSerializer(run.payslips.all(), many=True, context={"request": request}).data,
+                "bank_payments": BankPaymentSerializer(run.bank_payments.all(), many=True, context={"request": request}).data,
+                "history": history,
+            })
+        return Response({"results": records})
+
+
+@extend_schema(tags=["Payroll Bank Integration"])
+class ExportBankPaymentsView(APIView):
+    permission_classes = [RequiredPermission("payroll.approve")]
+
+    def get(self, request, payroll_run_id):
+        try:
+            payroll_run = PayrollRun.objects.get(id=payroll_run_id)
+        except PayrollRun.DoesNotExist:
+            return Response({"message": "Payroll run not found."}, status=404)
+
+        if payroll_run.status not in ["APPROVED", "FINALIZED"]:
+            return Response(
+                {"message": "Approve the payroll before exporting bank instructions."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        payments = payroll_run.bank_payments.exclude(status="FAILED").select_related("employee")
+        if not payments.exists():
+            return Response(
+                {"message": "No eligible bank payments found for this payroll run."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        invalid_payments = payments.filter(account_number="")
+        if invalid_payments.exists():
+            return Response(
+                {"message": "Bank instruction export is blocked by missing account numbers."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if payroll_run.status == "APPROVED":
+            payments.filter(status="PENDING").update(status="PROCESSING")
+
+        lines = ["payment_id,employee_number,employee_name,bank_name,account_number,account_name,amount,reference"]
+        for payment in payments:
+            lines.append(
+                ",".join([
+                    str(payment.id),
+                    payment.employee.employee_number,
+                    f'"{payment.employee.full_name.replace("\"", "\"\"")}"',
+                    f'"{payment.bank_name.replace("\"", "\"\"")}"',
+                    payment.account_number,
+                    f'"{payment.account_name.replace("\"", "\"\"")}"',
+                    str(payment.amount),
+                    f"PAY-{payroll_run.year}{payroll_run.month:02d}-{payment.id}",
+                ])
+            )
+
+        response = HttpResponse("\n".join(lines), content_type="text/csv")
+        response["Content-Disposition"] = (
+            f'attachment; filename="payroll_{payroll_run.year}_{payroll_run.month:02d}_bank_instructions.csv"'
+        )
+        return response
+
+
+@extend_schema(
+    request=BankReconciliationSerializer,
+    tags=["Payroll Bank Integration"],
+)
+class ReconcileBankPaymentsView(APIView):
+    permission_classes = [RequiredPermission("payroll.approve")]
+
+    def post(self, request, payroll_run_id):
+        serializer = BankReconciliationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            payroll_run = PayrollRun.objects.get(id=payroll_run_id)
+        except PayrollRun.DoesNotExist:
+            return Response({"message": "Payroll run not found."}, status=404)
+
+        if payroll_run.status not in ["APPROVED", "FINALIZED"]:
+            return Response(
+                {"message": "Only approved payroll bank payments can be reconciled."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        payments = payroll_run.bank_payments.filter(
+            id__in=serializer.validated_data["payment_ids"]
+        )
+        if payments.count() != len(set(serializer.validated_data["payment_ids"])):
+            return Response(
+                {"message": "One or more payments do not belong to this payroll run."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        payments.update(status=serializer.validated_data["status"])
+        if (
+            serializer.validated_data["status"] == "PAID"
+            and not payroll_run.bank_payments.exclude(status="PAID").exists()
+        ):
+            payroll_run.status = "FINALIZED"
+            payroll_run.save(update_fields=["status"])
+
+        return Response(
+            {
+                "message": "Bank payments reconciled successfully.",
+                "updated": payments.count(),
+                "payroll_status": payroll_run.status,
+                "reconciled_at": timezone.now(),
+            }
+        )
 
 
 class PayComponentViewSet(
@@ -322,6 +531,7 @@ class GeneratePayrollView(APIView):
             year=serializer.validated_data["year"],
             processed_by=request.user,
             request=request,
+            employee_ids=serializer.validated_data.get("employee_ids"),
         )
 
         if payroll_run.status not in {
@@ -508,6 +718,37 @@ class ApprovePayrollView(APIView):
                 {"message": str(error)},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+
+@extend_schema(
+    request=PayslipReviewSerializer,
+    responses={200: PayslipSerializer(many=True)},
+    tags=["Payroll Workflow"],
+)
+class PayslipReviewView(APIView):
+    permission_classes = [RequiredPermission("payroll.approve")]
+
+    def post(self, request, payroll_run_id):
+        serializer = PayslipReviewSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            payroll_run = PayrollRun.objects.get(id=payroll_run_id)
+            payslips = review_payslips(
+                payroll_run=payroll_run,
+                payslip_ids=serializer.validated_data["payslip_ids"],
+                action=serializer.validated_data["action"],
+                reviewed_by=request.user,
+                comment=serializer.validated_data.get("comment", ""),
+                request=request,
+            )
+            return Response({
+                "message": "Payroll items reviewed.",
+                "payslips": PayslipSerializer(payslips, many=True).data,
+            })
+        except PayrollRun.DoesNotExist:
+            return Response({"message": "Payroll run not found."}, status=status.HTTP_404_NOT_FOUND)
+        except ValueError as error:
+            return Response({"message": str(error)}, status=status.HTTP_400_BAD_REQUEST)
 
 
 @extend_schema(

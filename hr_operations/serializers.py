@@ -1,13 +1,28 @@
 from rest_framework import serializers
 
 from .models import (
+    BranchTask,
+    EmployeeNote,
+    PerformanceCycle,
     PerformanceReview,
     PerformanceGoal,
     DisciplinaryCase,
     Announcement,
     Training,
     TrainingEnrollment,
+    OffboardingCase,
+    OffboardingChecklistItem,
+    OffboardingExitInterview,
+    OffboardingFinalSettlement,
 )
+
+
+def employee_display_name(employee):
+    """Employee has no ``full_name`` field, so compose one from its parts."""
+    if not employee:
+        return ""
+    parts = [employee.first_name, employee.middle_name, employee.last_name]
+    return " ".join(part for part in parts if part) or employee.employee_number
 
 
 # =========================================================
@@ -15,18 +30,62 @@ from .models import (
 # =========================================================
 
 class PerformanceGoalSerializer(serializers.ModelSerializer):
+    employee_name = serializers.SerializerMethodField()
+
     class Meta:
         model = PerformanceGoal
         fields = [
-            "id", "review", "title", "description", "target_date",
-            "weight_percentage", "status", "progress_notes",
+            "id", "review", "employee", "employee_name", "cycle", "title",
+            "description", "target_date", "weight_percentage", "status",
+            "progress_notes", "created_at", "updated_at",
         ]
+        read_only_fields = ["created_at", "updated_at"]
+
+    def get_employee_name(self, obj):
+        return employee_display_name(obj.owner)
+
+    def validate(self, attrs):
+        # A goal must belong to somebody: either directly or via its review.
+        employee = attrs.get("employee") or getattr(self.instance, "employee", None)
+        review = attrs.get("review") or getattr(self.instance, "review", None)
+        if not employee and not review:
+            raise serializers.ValidationError(
+                "Provide an employee (or a review) for this goal."
+            )
+        return attrs
+
+
+class PerformanceCycleSerializer(serializers.ModelSerializer):
+    """Appraisal cycle as the web client's Performance Oversight page models it."""
+
+    created_by_name = serializers.CharField(
+        source="created_by.username",
+        read_only=True,
+        default="",
+    )
+
+    class Meta:
+        model = PerformanceCycle
+        fields = [
+            "id", "name", "description", "start_date", "end_date",
+            "review_period", "status", "scope", "scope_id", "rating_scale",
+            "has_360_feedback", "reminder_frequency", "employees",
+            "employee_status", "created_at", "created_by", "created_by_name",
+        ]
+        read_only_fields = ["created_at", "created_by"]
 
 
 class PerformanceReviewSerializer(serializers.ModelSerializer):
-    employee_name = serializers.CharField(source="employee.full_name", read_only=True)
-    reviewer_name = serializers.CharField(source="reviewer.__str__", read_only=True)
+    employee_name = serializers.SerializerMethodField()
+    reviewer_name = serializers.CharField(
+        source="reviewer.username",
+        read_only=True,
+        default="",
+    )
     goals = PerformanceGoalSerializer(many=True, read_only=True)
+
+    def get_employee_name(self, obj):
+        return employee_display_name(obj.employee)
 
     class Meta:
         model = PerformanceReview
@@ -121,3 +180,94 @@ class TrainingSerializer(serializers.ModelSerializer):
         if start and end and end < start:
             raise serializers.ValidationError("End date cannot be before the start date.")
         return attrs
+
+
+class OffboardingCaseSerializer(serializers.ModelSerializer):
+    employee_name = serializers.SerializerMethodField()
+    employee_number = serializers.CharField(source="employee.employee_number", read_only=True)
+    employee_email = serializers.CharField(source="employee.work_email", read_only=True)
+    branch_name = serializers.CharField(source="employee.branch.name", read_only=True)
+    department_name = serializers.CharField(source="employee.department.name", read_only=True)
+    position = serializers.CharField(source="employee.designation.title", read_only=True)
+    initiated_by_name = serializers.SerializerMethodField()
+    checklist_total = serializers.SerializerMethodField()
+    checklist_completed = serializers.SerializerMethodField()
+
+    def get_employee_name(self, obj):
+        return employee_display_name(obj.employee)
+
+    def get_initiated_by_name(self, obj):
+        if not obj.initiated_by:
+            return ""
+        return obj.initiated_by.get_full_name() or obj.initiated_by.username
+
+    def get_checklist_total(self, obj):
+        return obj.checklist_items.count()
+
+    def get_checklist_completed(self, obj):
+        return obj.checklist_items.filter(status="COMPLETED").count()
+
+    class Meta:
+        model = OffboardingCase
+        fields = ["id", "employee", "employee_name", "employee_number", "employee_email", "branch_name", "department_name", "position", "exit_type", "reason", "last_working_day", "notice_period_status", "status", "initiated_by", "initiated_by_name", "checklist_total", "checklist_completed", "created_at", "updated_at", "completed_at"]
+        read_only_fields = ["initiated_by", "created_at", "updated_at", "completed_at"]
+
+
+class OffboardingChecklistItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OffboardingChecklistItem
+        fields = "__all__"
+
+
+class OffboardingExitInterviewSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OffboardingExitInterview
+        fields = "__all__"
+
+
+class OffboardingFinalSettlementSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OffboardingFinalSettlement
+        fields = "__all__"
+
+
+# =========================================================
+# BRANCH OPERATIONS
+# =========================================================
+
+class BranchTaskSerializer(serializers.ModelSerializer):
+    assigned_to_name = serializers.SerializerMethodField()
+    created_by_name = serializers.CharField(
+        source="created_by.username", read_only=True, default="",
+    )
+
+    class Meta:
+        model = BranchTask
+        fields = [
+            "id", "title", "description", "priority", "status", "due_date",
+            "assigned_to", "assigned_to_name", "branch", "department",
+            "created_by", "created_by_name", "completed_at",
+            "created_at", "updated_at",
+        ]
+        read_only_fields = ["created_by", "created_at", "updated_at"]
+
+    def get_assigned_to_name(self, obj):
+        return employee_display_name(obj.assigned_to)
+
+
+class EmployeeNoteSerializer(serializers.ModelSerializer):
+    employee_name = serializers.SerializerMethodField()
+    author_name = serializers.CharField(
+        source="author.username", read_only=True, default="",
+    )
+
+    class Meta:
+        model = EmployeeNote
+        fields = [
+            "id", "employee", "employee_name", "note", "category",
+            "author", "author_name", "created_at",
+        ]
+        read_only_fields = ["author", "created_at"]
+
+    def get_employee_name(self, obj):
+        return employee_display_name(obj.employee)

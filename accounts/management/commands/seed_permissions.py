@@ -68,6 +68,12 @@ class Command(BaseCommand):
             ("TRAINING", "training.attendance", "Record Training Attendance"),
             ("TRAINING", "training.assessment", "Record Training Assessment"),
             ("TRAINING", "training.recommend", "Recommend Training"),
+            ("CONTRACTS", "contracts.view", "View Contracts"),
+            ("CONTRACTS", "contracts.create", "Create Contracts"),
+            ("CONTRACTS", "contracts.update", "Update Contracts"),
+            ("CONTRACTS", "contracts.approve", "Approve Contracts"),
+            ("CONTRACTS", "contracts.renew", "Renew Contracts"),
+            ("CONTRACTS", "contracts.terminate", "Terminate Contracts"),
             ("REPORTS", "reports.view", "View Reports"),
             ("AUDIT", "audit.view", "View Audit Logs"),
             ("SETTINGS", "settings.manage", "Manage Settings"),
@@ -95,6 +101,15 @@ class Command(BaseCommand):
             "training.recommend",
         ]
 
+        all_contract_permissions = [
+            "contracts.view",
+            "contracts.create",
+            "contracts.update",
+            "contracts.approve",
+            "contracts.renew",
+            "contracts.terminate",
+        ]
+
         role_permissions = {
             "SUPER_ADMIN": [p[1] for p in permissions],
             "ADMIN": [
@@ -115,7 +130,9 @@ class Command(BaseCommand):
                 "performance.hr_approve",
                 "performance.finalize",
                 *all_training_permissions,
-                "payroll.view", "reports.view",
+                *all_contract_permissions,
+                "payroll.view", "payroll.generate", "payroll.approve",
+                "reports.view",
                 "settings.manage",
             ],
             "HR": [
@@ -133,12 +150,16 @@ class Command(BaseCommand):
                 "performance.hr_approve",
                 "performance.finalize",
                 *all_training_permissions,
+                *all_contract_permissions,
+                "payroll.view",
                 "reports.view",
             ],
             "MANAGER": [
                 "employees.view",
                 "salary.view",
                 "benefits.view",
+                "contracts.view",
+                "payroll.view", "payroll.approve",
                 "performance.view",
                 "performance.create",
                 "performance.update",
@@ -159,7 +180,46 @@ class Command(BaseCommand):
                 "benefits.view",
                 "attendance.view",
                 "leave.view",
+                "contracts.view",
                 "payroll.view", "payroll.generate",
+                "reports.view",
+            ],
+            # Read-only company-wide oversight; the client ships an executive
+            # dashboard for this role.
+            "EXECUTIVE": [
+                "employees.view",
+                "salary.view",
+                "attendance.view",
+                "leave.view",
+                "benefits.view",
+                "performance.view",
+                "training.view",
+                "payroll.view",
+                "contracts.view",
+                "reports.view",
+                "audit.view",
+            ],
+            "DEPARTMENT_HEAD": [
+                "employees.view",
+                "attendance.view",
+                "leave.view", "leave.approve",
+                "benefits.view",
+                "performance.view", "performance.create",
+                "performance.update",
+                "performance.submit_review",
+                "performance.manager_approve",
+                "performance.update_progress",
+                "training.view", "training.enroll",
+                "training.attendance", "training.recommend",
+                "contracts.view",
+                "reports.view",
+            ],
+            "FINANCE": [
+                "employees.view",
+                "salary.view", "salary.adjust",
+                "benefits.view", "benefits.approve",
+                "payroll.view", "payroll.generate", "payroll.approve",
+                "contracts.view",
                 "reports.view",
             ],
             "EMPLOYEE": [
@@ -169,11 +229,34 @@ class Command(BaseCommand):
                 "employees.view",
                 "salary.view",
                 "benefits.view",
+                "contracts.view",
+                # At OWN scope this exposes only the employee's own payslips.
+                "payroll.view",
                 "performance.view",
                 "performance.update_progress",
                 "training.view",
             ],
         }
+
+        # How much data each role may see. RolePermission.data_scope defaults to
+        # "OWN", which resolves to an empty queryset for any user without a
+        # linked employee profile, so every role must state its scope explicitly
+        # or administrative roles silently see nothing at all.
+        role_scopes = {
+            "SUPER_ADMIN": "ORGANIZATION",
+            "ADMIN": "ORGANIZATION",
+            "EXECUTIVE": "ORGANIZATION",
+            "HR": "ORGANIZATION",
+            "FINANCE": "ORGANIZATION",
+            "PAYROLL_OFFICER": "ORGANIZATION",
+            "DEPARTMENT_HEAD": "DEPARTMENT",
+            "MANAGER": "DEPARTMENT",
+            "EMPLOYEE": "OWN",
+        }
+
+        # Self-service permissions stay scoped to the holder's own records even
+        # for senior roles, so a manager cannot approve their own leave.
+        own_scoped_codenames = {"leave.request"}
 
         for role_name, codenames in role_permissions.items():
             role = Role.objects.filter(name=role_name).first()
@@ -183,11 +266,48 @@ class Command(BaseCommand):
                 )
                 continue
 
+            role_scope = role_scopes.get(role_name, "OWN")
+
             for codename in codenames:
                 permission = Permission.objects.get(codename=codename)
-                RolePermission.objects.get_or_create(
+                scope = (
+                    "OWN"
+                    if codename in own_scoped_codenames
+                    else role_scope
+                )
+                RolePermission.objects.update_or_create(
                     role=role,
                     permission=permission,
+                    defaults={"data_scope": scope},
+                )
+
+            # Rows granted outside this command (earlier seeds, manual edits)
+            # would otherwise keep the "OWN" default and silently resolve to an
+            # empty queryset. Align their scope too and report them, rather than
+            # deleting grants this command did not create.
+            stale = RolePermission.objects.filter(role=role).exclude(
+                permission__codename__in=codenames
+            ).exclude(
+                permission__codename__in=own_scoped_codenames
+            )
+
+            stale_codenames = sorted(
+                row.permission.codename for row in stale.select_related("permission")
+            )
+
+            if stale_codenames:
+                stale.update(data_scope=role_scope)
+
+            self.stdout.write(
+                f"  {role_name}: {len(codenames)} permissions at {role_scope} scope"
+            )
+
+            if stale_codenames:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"    {len(stale_codenames)} extra grant(s) not declared here, "
+                        f"rescoped to {role_scope}: {', '.join(stale_codenames)}"
+                    )
                 )
 
         self.stdout.write(

@@ -4,6 +4,7 @@ from .models import (
     ReportExecution,
     ReportTemplate,
     SavedReport,
+    ScheduledReport,
 )
 
 
@@ -92,6 +93,28 @@ class SavedReportSerializer(serializers.ModelSerializer):
             or obj.owner.email
             or obj.owner.username
         )
+
+
+class ScheduledReportSerializer(serializers.ModelSerializer):
+    created_by_name = serializers.CharField(
+        source="created_by.username",
+        read_only=True,
+        default="",
+    )
+
+    class Meta:
+        model = ScheduledReport
+        fields = "__all__"
+        read_only_fields = ("created_by", "created_at", "updated_at", "last_run")
+
+    def validate_recipients(self, value):
+        if isinstance(value, str):
+            value = [part.strip() for part in value.split(",") if part.strip()]
+        if not value:
+            raise serializers.ValidationError(
+                "Provide at least one recipient email address."
+            )
+        return value
 
 
 class ReportGenerationSerializer(serializers.Serializer):

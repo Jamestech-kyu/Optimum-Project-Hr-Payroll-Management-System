@@ -14,6 +14,7 @@ from .views import (
     EmployeeFinancialProfileView,
     EmployeeSalaryHistoryView,
     EmployeeSalaryAdjustmentView,
+    EmployeeLifecycleView,
 )
 
 router = DefaultRouter()
@@ -28,6 +29,12 @@ router.register("bank-accounts", EmployeeBankAccountViewSet, basename="employee-
 router.register("assets", EmployeeAssetViewSet, basename="employee-assets")
 
 urlpatterns = [
+    # Must precede the router so "lifecycle" is not captured as a detail pk.
+    path(
+        "employees/lifecycle/",
+        EmployeeLifecycleView.as_view(),
+        name="employee-lifecycle",
+    ),
     path(
         "employees/<int:employee_id>/financial-profile/",
         EmployeeFinancialProfileView.as_view(),

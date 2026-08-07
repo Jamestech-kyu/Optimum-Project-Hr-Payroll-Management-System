@@ -5,6 +5,13 @@ from employees.models import Employee
 
 
 class EmploymentContract(models.Model):
+    CURRENCY_CHOICES = [
+        ("USD", "US Dollar"),
+        ("EUR", "Euro"),
+        ("GBP", "British Pound"),
+        ("INR", "Indian Rupee"),
+        ("ZAR", "South African Rand"),
+    ]
     CONTRACT_TYPE_CHOICES = [
         ("PERMANENT", "Permanent"),
         ("FIXED_TERM", "Fixed Term"),
@@ -34,6 +41,8 @@ class EmploymentContract(models.Model):
         unique=True,
     )
 
+    title = models.CharField(max_length=255, blank=True)
+
     contract_type = models.CharField(
         max_length=30,
         choices=CONTRACT_TYPE_CHOICES,
@@ -50,6 +59,34 @@ class EmploymentContract(models.Model):
         blank=True,
     )
 
+    probation_period = models.PositiveIntegerField(
+        default=0,
+        help_text="Probation period in months",
+    )
+
+    notice_period = models.PositiveIntegerField(
+        default=30,
+        help_text="Notice period in days",
+    )
+
+    currency = models.CharField(
+        max_length=3,
+        choices=CURRENCY_CHOICES,
+        default="USD",
+    )
+
+    renewal_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Renewal reminder date",
+    )
+
+    signed_by_employee = models.BooleanField(default=False)
+    signed_by_employer = models.BooleanField(default=False)
+    signed_date = models.DateTimeField(null=True, blank=True)
+    last_review_date = models.DateField(null=True, blank=True)
+    next_review_date = models.DateField(null=True, blank=True)
+
     basic_salary = models.DecimalField(
         max_digits=12,
         decimal_places=2,
@@ -63,6 +100,10 @@ class EmploymentContract(models.Model):
     )
 
     terms = models.TextField(blank=True)
+    notes = models.TextField(
+        blank=True,
+        help_text="Additional notes about the contract",
+    )
 
     document = models.FileField(
         upload_to="contracts/documents/",
@@ -102,6 +143,22 @@ class EmploymentContract(models.Model):
             f"{self.contract_number} - "
             f"{self.employee.full_name}"
         )
+
+
+class ContractDocument(models.Model):
+    contract = models.ForeignKey(
+        EmploymentContract,
+        on_delete=models.CASCADE,
+        related_name="documents_list",
+    )
+    name = models.CharField(max_length=255)
+    file = models.FileField(upload_to="contracts/documents/")
+    document_type = models.CharField(max_length=50, blank=True)
+    file_size = models.CharField(max_length=50, blank=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-uploaded_at"]
 
 
 class ContractRenewal(models.Model):

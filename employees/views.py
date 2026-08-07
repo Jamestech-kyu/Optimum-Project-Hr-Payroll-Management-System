@@ -13,6 +13,7 @@ from .serializers import (
     SalaryAdjustmentSerializer,
 )
 from .services import adjust_employee_salary
+from .lifecycle_services import employee_lifecycle
 from rest_framework import status, viewsets
 from rest_framework.response import Response
 from rest_framework import filters
@@ -330,6 +331,41 @@ class EmployeeAssetViewSet(viewsets.ModelViewSet):
             employee_field="employee",
             permission_codename="employees.view",
         )
+@extend_schema(
+    tags=["Employee Lifecycle"],
+)
+class EmployeeLifecycleView(APIView):
+    """Unified lifecycle view backing the client's Employee Lifecycle page.
+
+    Returns ``{"employees": [...], "analytics": {...}}``. Filtering happens here
+    rather than through DjangoFilterBackend because the lifecycle stage is
+    derived from employment status plus any open offboarding case, and the
+    analytics block has to be computed over the filtered set.
+    """
+
+    permission_classes = [RequiredPermission("employees.view")]
+
+    def get(self, request):
+        params = request.query_params
+
+        visible = scope_employee_queryset(
+            user=request.user,
+            queryset=Employee.objects.all(),
+            permission_codename="employees.view",
+        )
+
+        payload = employee_lifecycle(
+            search=params.get("search"),
+            stage=params.get("stage"),
+            department=params.get("department"),
+            branch=params.get("branch"),
+            employment_type=params.get("employment_type"),
+            visible_employee_ids=visible.values_list("id", flat=True),
+        )
+
+        return Response(payload, status=status.HTTP_200_OK)
+
+
 @extend_schema(
     responses={200: FinancialProfileSerializer},
     tags=["Employee Financial Profile"],

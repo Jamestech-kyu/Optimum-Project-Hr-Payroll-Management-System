@@ -15,9 +15,11 @@ from django.contrib.auth import authenticate
 from audit.services import log_activity
 from audit.utils import get_client_ip
 
-from .models import CustomUser
+from .models import CustomUser, Role
 from .serializers import (
     RegisterSerializer,
+    RoleSerializer,
+    ProvisionUserSerializer,
     UserSerializer,
     UpdateProfileSerializer,
     ChangePasswordSerializer,
@@ -48,6 +50,67 @@ class RegisterView(APIView):
             )
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@extend_schema(responses={200: RoleSerializer(many=True)})
+class RoleListView(APIView):
+    """Assignable roles, used by the client's user-provisioning form.
+
+    Returns a bare list rather than a paginated envelope because the client maps
+    over the response directly.
+    """
+
+    permission_classes = [RequiredPermission("accounts.manage")]
+
+    def get(self, request):
+        roles = Role.objects.all().order_by("name")
+
+        return Response(
+            RoleSerializer(roles, many=True).data,
+            status=status.HTTP_200_OK,
+        )
+
+
+@extend_schema(responses={200: UserSerializer(many=True)})
+class UserListCreateView(APIView):
+    """List system users, and provision new ones from the admin screen.
+
+    Provisioned users are approved on creation: an administrator choosing the
+    role is the approval step, so there is nothing left to confirm.
+    """
+
+    permission_classes = [RequiredPermission("accounts.manage")]
+
+    def get(self, request):
+        users = CustomUser.objects.select_related("role").order_by("username")
+
+        return Response(
+            UserSerializer(users, many=True).data,
+            status=status.HTTP_200_OK,
+        )
+
+    def post(self, request):
+        serializer = ProvisionUserSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        user = serializer.save()
+
+        log_activity(
+            user=request.user,
+            action="CREATE",
+            module="Accounts",
+            description=(
+                f"Provisioned user {user.username} "
+                f"with role {user.role.name if user.role else 'none'}."
+            ),
+            object_id=user.id,
+            ip_address=get_client_ip(request),
+        )
+
+        return Response(
+            UserSerializer(user).data,
+            status=status.HTTP_201_CREATED,
+        )
 
 
 @extend_schema(request=LoginSerializer)

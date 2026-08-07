@@ -330,6 +330,17 @@ SPECTACULAR_SETTINGS = {
     'DESCRIPTION': 'Backend API for HR & Payroll Management System',
     'VERSION': '1.0.0',
 }
+# -----------------------------------------------------------------------------
+# CORS Configuration
+# -----------------------------------------------------------------------------
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+
+# For development only – you can allow all origins (but not for production)
+# CORS_ALLOW_ALL_ORIGINS = True
 CELERY_BROKER_URL = config(
     'CELERY_BROKER_URL',
     default='redis://127.0.0.1:6379/0',

@@ -157,3 +157,67 @@ class SavedReport(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class ScheduledReport(models.Model):
+    """A report that is emailed to recipients on a recurring schedule.
+
+    Backs the Scheduled Reports panel on the analytics page. ``last_run`` stays
+    null until a run happens, which the client shows as "Never".
+    """
+
+    FREQUENCY_CHOICES = [
+        ("DAILY", "Daily"),
+        ("WEEKLY", "Weekly"),
+        ("MONTHLY", "Monthly"),
+        ("QUARTERLY", "Quarterly"),
+        ("ANNUAL", "Annual"),
+    ]
+
+    STATUS_CHOICES = [
+        ("ACTIVE", "Active"),
+        ("PAUSED", "Paused"),
+    ]
+
+    name = models.CharField(max_length=150)
+    report_type = models.CharField(
+        max_length=30,
+        choices=ReportTemplate.REPORT_TYPES,
+        blank=True,
+    )
+    frequency = models.CharField(
+        max_length=20,
+        choices=FREQUENCY_CHOICES,
+        default="MONTHLY",
+    )
+    recipients = models.JSONField(
+        default=list,
+        help_text="List of email addresses the report is sent to.",
+    )
+    filters = models.JSONField(default=dict, blank=True)
+    export_format = models.CharField(
+        max_length=10,
+        choices=ReportTemplate.EXPORT_FORMATS,
+        default="PDF",
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default="ACTIVE",
+    )
+    last_run = models.DateTimeField(null=True, blank=True)
+    next_run = models.DateField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="scheduled_reports",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return f"{self.name} ({self.get_frequency_display()})"

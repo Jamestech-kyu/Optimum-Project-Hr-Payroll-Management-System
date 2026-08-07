@@ -28,6 +28,7 @@ from .serializers import (
     ContractTerminateActionSerializer,
 )
 from .services import (
+    approve_contract,
     renew_contract,
     terminate_contract,
 )
@@ -221,6 +222,53 @@ class ExpiringContractsView(APIView):
     responses={200: ContractRenewalSerializer},
     tags=["Contracts"],
 )
+@extend_schema(
+    request=None,
+    responses={200: EmploymentContractSerializer},
+    tags=["Contracts"],
+)
+class ApproveContractView(APIView):
+    permission_classes = [
+        RequiredPermission("contracts.approve")
+    ]
+
+    def post(self, request, contract_id):
+        try:
+            contract = check_related_employee_permission(
+                user=request.user,
+                queryset=EmploymentContract.objects.select_related(
+                    "employee",
+                ),
+                employee_field="employee",
+                object_id=contract_id,
+                permission_codename="contracts.approve",
+            )
+
+            contract = approve_contract(
+                contract=contract,
+                approved_by=request.user,
+                request=request,
+            )
+
+            return Response(
+                {
+                    "message": (
+                        "Contract approved successfully."
+                    ),
+                    "contract": EmploymentContractSerializer(
+                        contract
+                    ).data,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        except ValueError as error:
+            return Response(
+                {"message": str(error)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+
 class RenewContractView(APIView):
     permission_classes = [
         RequiredPermission("contracts.renew")

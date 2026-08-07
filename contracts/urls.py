@@ -5,6 +5,7 @@ from .views import (
     EmploymentContractViewSet,
     ContractRenewalViewSet,
     ContractTerminationViewSet,
+    ApproveContractView,
     ExpiringContractsView,
     RenewContractView,
     TerminateContractView,
@@ -39,6 +40,12 @@ urlpatterns = [
         "contracts/expiring/",
         ExpiringContractsView.as_view(),
         name="expiring-contracts",
+    ),
+
+    path(
+        "contracts/<int:contract_id>/approve/",
+        ApproveContractView.as_view(),
+        name="approve-contract",
     ),
 
     path(

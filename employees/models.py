@@ -177,6 +177,21 @@ class Employee(models.Model):
         ]
 
     @property
+    def full_name(self):
+        """Display name for the employee.
+
+        Serializers across payroll, contracts, performance and the employee API
+        all expose ``full_name``. Without this property DRF resolves it to
+        ``None`` rather than raising, so those responses silently carried null
+        names and the client rendered blank rows.
+        """
+        parts = [self.first_name, self.middle_name, self.last_name]
+        return " ".join(part for part in parts if part) or self.employee_number
+
+    def __str__(self):
+        return f"{self.employee_number} - {self.full_name}"
+
+    @property
     def gross_salary(self):
         return (
             self.basic_salary

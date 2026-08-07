@@ -35,6 +35,40 @@ class RegisterSerializer(serializers.ModelSerializer):
         return user
 
 
+class ProvisionUserSerializer(serializers.ModelSerializer):
+    """Administrator-driven user creation, where the role is chosen up front."""
+
+    password = serializers.CharField(write_only=True, min_length=8)
+    role = serializers.PrimaryKeyRelatedField(
+        queryset=Role.objects.all(),
+        required=True,
+    )
+
+    class Meta:
+        model = CustomUser
+        fields = [
+            "id",
+            "username",
+            "email",
+            "password",
+            "phone_number",
+            "role",
+        ]
+
+    def create(self, validated_data):
+        password = validated_data.pop("password")
+
+        user = CustomUser(**validated_data)
+        user.set_password(password)
+
+        user.is_approved = True
+        user.is_active = True
+
+        user.save()
+
+        return user
+
+
 class UserSerializer(serializers.ModelSerializer):
     role = serializers.CharField(source="role.name", read_only=True)
     employee_id = serializers.SerializerMethodField()

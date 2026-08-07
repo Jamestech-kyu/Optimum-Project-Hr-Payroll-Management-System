@@ -3,6 +3,8 @@ from rest_framework.routers import DefaultRouter
 
 from .views import (
     AttendanceDashboardView,
+    BenefitsDashboardView,
+    ComplianceDashboardView,
     DashboardOverviewView,
     EmployeeDashboardView,
     GenerateReportView,
@@ -15,6 +17,7 @@ from .views import (
     ReportTemplateViewSet,
     RoleDashboardView,
     SavedReportViewSet,
+    ScheduledReportViewSet,
     TrainingDashboardView,
 )
 
@@ -34,6 +37,11 @@ router.register(
     "saved",
     SavedReportViewSet,
     basename="saved-reports",
+)
+router.register(
+    "schedules",
+    ScheduledReportViewSet,
+    basename="scheduled-reports",
 )
 
 urlpatterns = [
@@ -76,6 +84,16 @@ urlpatterns = [
         "dashboard/payroll/",
         PayrollDashboardView.as_view(),
         name="dashboard-payroll",
+    ),
+    path(
+        "dashboard/compliance/",
+        ComplianceDashboardView.as_view(),
+        name="dashboard-compliance",
+    ),
+    path(
+        "dashboard/benefits/",
+        BenefitsDashboardView.as_view(),
+        name="dashboard-benefits",
     ),
     path(
         "dashboard/performance/",
